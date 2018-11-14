@@ -1,0 +1,30 @@
+general:
+
+- What to do about permissions?
+
+
+sendmail:
+
+- support -t
+
+
+doorknob:
+
+- encrypt password
+
+- command line args
+
+- LOGGING
+
+- send multi messages at once... maybe even wait a bit?
+
+- deal with failed messages
+
+
+docs:
+
+- One server to rule them all
+
+- One user to rule them all
+
+- Why all the rewrites?
