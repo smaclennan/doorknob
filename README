@@ -24,7 +24,7 @@ Validation and Security
 
 Doorknob is not very bright. A basic assumption is that you are
 sending to a commercial grade mail server which will already be doing
-a lot (too much?) of checking and filtering of the email. So doorknob
+a lot of (too much?) checking and filtering of the email. So doorknob
 lets them do that job and just does as little as possible. Maybe
 doorknob isn't as dump as he looks.
 
