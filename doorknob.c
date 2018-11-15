@@ -124,7 +124,7 @@ static int smtp_one(const char *fname)
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 #endif
 
-#if 0
+#if 1
 	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); // SAM DBG
 	// curl_easy_setopt(curl, CURLOPT_STDERR, file pointer);
 #endif

@@ -33,7 +33,7 @@
 static char tmp_path[MAX_QNAME + 4];
 static char real_path[MAX_QNAME + 6];
 
-static FILE *create_tmp_file(void)
+static int create_tmp_file(void)
 {
 	char tmp_file[MAX_QNAME];
 	struct timeval now;
@@ -45,15 +45,23 @@ static FILE *create_tmp_file(void)
 	snprintf(tmp_path, sizeof(tmp_path), "tmp/%s", tmp_file);
 	snprintf(real_path, sizeof(real_path), "queue/%s", tmp_file);
 
-	FILE *fp = fopen(tmp_path, "w");
-	if (!fp) {
+	int fd = creat(tmp_path, 0644);
+	if (fd < 0) {
 		perror(tmp_path);
 		exit(1);
 	}
 
-	return fp;
+	return fd;
 }
 
+static size_t total_len, total_write;
+static int my_write(int fd, void *buf, size_t len)
+{
+	total_len += len;
+	int n = write(fd, buf, len);
+	total_write += n;
+	return n;
+}
 
 int main(int argc, char *argv[])
 {
@@ -86,36 +94,45 @@ int main(int argc, char *argv[])
 	char hostname[100];
 	gethostname(hostname, sizeof(hostname));
 
-	// SAM I think it should be an fd after all...
-	FILE *fp = create_tmp_file();
+	int fd = create_tmp_file();
 
 	// Write out the recipients
-	for (int i = optind; i < argc; ++i)
-		fprintf(fp, "%s\n", argv[i]);
-	fputc('\n', fp);
+	for (int i = optind; i < argc; ++i) {
+		my_write(fd, argv[i], strlen(argv[i]));
+		my_write(fd, "\n", 1);
+	}
+	my_write(fd, "\n", 1);
 
 	// Write out the from
 	char from[128], *p;
 	snprintf(from, sizeof(from), "From: %s", pw->pw_gecos);
 	if ((p = strchr(from, ','))) *p = 0;
 	int n = strlen(from);
-	fprintf(fp, "%s <%s@%s>\n", from, pw->pw_name, hostname);
+	n += snprintf(from + n, sizeof(from) - n, "%s <%s@%s>\n", from, pw->pw_name, hostname);
+	my_write(fd, from, n);
 
 	/* Read the email and write to file */
 	char buff[4096];
 	while ((n = read(0, buff, sizeof(buff))) > 0)
-		if (fwrite(buff, n, 1, fp) != 1)
+		if (write(fd, buff, n) != n)
 			goto write_error;
-
-	fwrite("\r\n.\r\n", 5, 1, fp);
-	fflush(fp);
-	if (ferror(fp))
-		goto write_error;
 
 	if (n)
 		goto read_error;
 
-	fclose(fp);
+#if 0
+	// It seems every smtp server asks for this... but nobody sends it
+	// and if we do the period is shown in the email.
+	my_write(fd, "\r\n.\r\n", 5);
+#endif
+
+	if (total_len != total_write)
+		goto write_error;
+
+	if (fsync(fd))
+		goto write_error;
+
+	close(fd);
 
 	if (rename(tmp_path, real_path)) {
 		fprintf(stderr, "Unable to rename %s to %s\n", tmp_path, real_path);
@@ -127,15 +144,13 @@ int main(int argc, char *argv[])
 
 write_error:
 	fprintf(stderr, "%s: write error\n", tmp_path);
-	fclose(fp);
+	close(fd);
 	unlink(tmp_path);
 	return -1;
 
 read_error:
 	fprintf(stderr, "%s: read error\n", tmp_path);
-	fclose(fp);
+	close(fd);
 	unlink(tmp_path);
 	return -1;
-
-	return 0;
 }

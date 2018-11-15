@@ -25,5 +25,11 @@ doorknob: doorknob.c
 sendmail: sendmail.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
 
+install: all
+	install -g mail doorknob $(DESTDIR)/usr/sbin
+	install -g mail sendmail $(DESTDIR)/usr/sbin
+	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/queue
+	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/tmp
+
 clean:
 	$(QUIET_RM)rm -f doorknob sendmail *.o
