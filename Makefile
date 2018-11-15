@@ -28,6 +28,8 @@ sendmail: sendmail.c
 install: all
 	install -g mail doorknob $(DESTDIR)/usr/sbin
 	install -g mail sendmail $(DESTDIR)/usr/sbin
+	rm -f $(DESTDIR)/usr/bin/sendmail
+	ln -s /usr/sbin/sendmail $(DESTDIR)/usr/bin/sendmail
 	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/queue
 	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/tmp
 

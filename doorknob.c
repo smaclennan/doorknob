@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -27,6 +28,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <poll.h>
+#include <syslog.h>
 #include <sys/inotify.h>
 #include <curl/curl.h>
 
@@ -36,6 +38,44 @@ static char *smtp_passwd;
 static char *mail_from;
 static int starttls;
 static int rewrite_from;
+
+static int foreground;
+static void logmsg(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	if (foreground)
+		vprintf(fmt, ap);
+	else
+		vsyslog(LOG_INFO, fmt, ap);
+	va_end(ap);
+}
+
+static void logsmtp(const char *fname, struct curl_slist *to, CURLcode res)
+{
+	char log[1024];
+
+	int n = snprintf(log, sizeof(log), "%s", fname);
+
+	while (to) {
+		n += snprintf(log + n, sizeof(log) - n, " %s", to->data);
+		if (n >= sizeof(log)) goto out;
+		to = to->next;
+	}
+
+	if (res == 0)
+		snprintf(log + n, sizeof(log) - n, " OK");
+	else
+		snprintf(log + n, sizeof(log) - n,
+				 " %d: %s", res, curl_easy_strerror(res));
+
+out:
+	if (foreground)
+		puts(log);
+	else
+		syslog(LOG_INFO, log);
+}
 
 static char *must_strdup(const char *str)
 {
@@ -71,6 +111,15 @@ static size_t read_callback(char *buffer, size_t size, size_t nitems, void *fp)
 	return fread(buffer, size, nitems, fp);
 }
 
+size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
+{
+	size *= nitems;
+
+	printf(">>> %.*s", (int)size, buffer);
+
+	return size;
+}
+
 static int smtp_one(const char *fname)
 {
 	FILE *fp = fopen(fname, "r");
@@ -83,7 +132,7 @@ static int smtp_one(const char *fname)
 	struct curl_slist *recipients = NULL;
 	CURL *curl = curl_easy_init();
 	if(!curl) {
-		printf("Unable to initialize curl\n");
+		logmsg("Unable to initialize curl\n");
 		goto done;
 	}
 
@@ -101,7 +150,7 @@ static int smtp_one(const char *fname)
 		}
 	}
 	if (recipients == NULL) {
-		printf("Hmmm... no to...\n");
+		logmsg("Hmmm... no to...\n");
 		goto done;
 	}
 
@@ -118,21 +167,21 @@ static int smtp_one(const char *fname)
 	curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
 	curl_easy_setopt(curl, CURLOPT_READDATA, fp);
 	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+	curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
 #if 0
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
 	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 #endif
 
-#if 1
+#if 0
 	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); // SAM DBG
 	// curl_easy_setopt(curl, CURLOPT_STDERR, file pointer);
 #endif
 
 	/* Send the message */
 	res = curl_easy_perform(curl);
-	if(res != CURLE_OK)
-		printf("curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+	logsmtp(fname, recipients, res);
 
 done:
 	fclose(fp);
@@ -209,7 +258,7 @@ static int read_event(int fd)
 
 int main(int argc, char *argv[])
 {
-	int c, foreground = 0;
+	int c;
 
 	read_config();
 
@@ -224,13 +273,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	if (chdir("queue")) {
-		fprintf(stderr, MAILDIR "/queue: %s\n", strerror(errno));
+		printf(MAILDIR "/queue: %s\n", strerror(errno));
 		exit(1);
 	}
-
-	if (foreground == 0)
-		if (daemon(1, 0))
-			perror("daemon");
 
 	int fd = inotify_init();
 	if (fd < 0) {
@@ -244,12 +289,18 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	if (foreground == 0) {
+		if (daemon(1, 0))
+			perror("daemon");
+		openlog("doorknob", 0, LOG_MAIL);
+	}
+
 	struct pollfd ufd = { .fd = fd, .events = POLLIN };
 
 	while (1) {
 		DIR *dir = opendir(".");
 		if (!dir) {
-			perror("opendir");
+			logmsg("opendir");
 			continue;
 		}
 

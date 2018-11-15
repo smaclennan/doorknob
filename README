@@ -1,0 +1,70 @@
+Doorknob is an SMTP (mail) forwarder that is dumb as a doorknob. All
+the smarts are in libcurl (https://curl.haxx.se/libcurl/).
+
+Doorknob is meant to be used on machines where you want to forward all
+of the mail to one mail account. Example use cases are laptops where
+you want to forward all your mail to say gmail no matter who it is
+really for. Or routers. Or work machines with overly strict email
+policies :(
+
+Doorknob has one simple config file and comes with a sample file that
+is fairly well documented. All mail goes to the One True Server
+(smtp-server) from the One True User (mail-from). Doorknob can even
+overwrite the From: in the header for those overly strict work
+policies.
+
+If the recipient has an @ in the email (fred@gmail.com) then the
+address goes through unchanged. However if the recipient is local
+(root) then it is send to the One True User. This means all your cron
+output gets sent to the right place.
+
+
+Validation and Security
+-----------------------
+
+Doorknob is not very bright. A basic assumption is that you are
+sending to a commercial grade mail server which will already be doing
+a lot (too much?) of checking and filtering of the email. So doorknob
+lets them do that job and just does as little as possible. Maybe
+doorknob isn't as dump as he looks.
+
+
+How It Works
+------------
+
+You can safely skip this section. You only need this if you want to
+interface with doorknob directly.
+
+I am going to assume the defaults here.
+
+Doorknob watches the /var/spool/mail/queue directory for new files and
+then sends them. You should create the file somewhere else
+(/var/spool/mail/tmp is used by sendmail) and then move it into the
+queue directory.
+
+The file name doesn't really matter as long as it isn't a hidden
+file. The recommended format is <seconds>.<microseconds>.<getpid>.
+This should guarantee no collisions (except over NFS).
+
+The format of the file is:
+
+<raw from address>
+<raw to address>
+<more raw to addressii ...>
+<empty line>
+<stuff>
+
+A raw address is fred@gmail.com, not <fred@gmail.com> and certainly
+not Fred Flintstone <fred@gmail.com>.
+
+Seriously, unless rewriting the From: line, doorknob doesn't care what
+comes after the empty line.
+
+
+Ubuntu Warning
+--------------
+
+Of course Ubuntu has to be the problem child. The default mail program
+is evil and uses "sendmail -t". Since I don't support this option
+right now, you either need to look elsewhere (maybe nullmailer?) or do
+an "apt install s-nail".

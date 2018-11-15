@@ -14,21 +14,6 @@ doorknob:
 
 - encrypt password
 
-- command line args
-
-- LOGGING
-
 - send multi messages at once... maybe even wait a bit?
 
 - deal with failed messages
-
-
-docs:
-
-- One server to rule them all
-
-- One user to rule them all
-
-- Why all the rewrites?
-
-- /etc/doorknob.conf only doorknob
