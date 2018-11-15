@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 	snprintf(from, sizeof(from), "From: %s", pw->pw_gecos);
 	if ((p = strchr(from, ','))) *p = 0;
 	int n = strlen(from);
-	n += snprintf(from + n, sizeof(from) - n, "%s <%s@%s>\n", from, pw->pw_name, hostname);
+	n += snprintf(from + n, sizeof(from) - n, " <%s@%s>\n", pw->pw_name, hostname);
 	my_write(fd, from, n);
 
 	/* Read the email and write to file */
