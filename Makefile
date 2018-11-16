@@ -17,7 +17,7 @@ QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
 .c.o:
 	$(QUIET_CC)$(CC) -o $@ -c $(CFLAGS) $<
 
-all: doorknob sendmail
+all: doorknob sendmail mailq
 
 doorknob: doorknob.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ -lcurl
@@ -30,6 +30,7 @@ install: all
 	install -g mail sendmail $(DESTDIR)/usr/sbin
 	rm -f $(DESTDIR)/usr/bin/sendmail
 	ln -s /usr/sbin/sendmail $(DESTDIR)/usr/bin/sendmail
+	install -g mail mailq    $(DESTDIR)/usr/sbin
 	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/queue
 	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/tmp
 
