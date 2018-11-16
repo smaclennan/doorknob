@@ -1,7 +1,64 @@
-#!/bin/sh
+#!/bin/sh -e
+
+# Start or stop doorknob
+#
+# Sean MacLennan <seanm@seanm.ca>
+
+### BEGIN INIT INFO
+# Provides:          doorknob mail-transport-agent
+# Required-Start:    $local_fs $remote_fs $syslog $named $network $time
+# Required-Stop:     $local_fs $remote_fs $syslog $named $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Doorknob SMTP forwarder
+# Description:       doorknob is a Mail Transport agent
+### END INIT INFO
+
+start_doorknob() {
+    if pgrep -f /usr/sbin/doorknob > /dev/null; then
+	echo doorknob already running
+	exit 1
+    fi
+
+    echo Starting doorknob...
+    /usr/sbin/doorknob
+
+    if ! pgrep -f /usr/sbin/doorknob > /dev/null; then
+	echo doorknob failed to start
+	exit 1
+    fi
+
+    exit 0
+}
+
+stop_doorknob() {
+    pkill -f /usr/sbin/doorknob || true
+
+    sleep 0.5
+    if pgrep -f /usr/sbin/doorknob; then
+	echo doorknob failed to stop
+	exit 1
+    fi
+
+    exit 0
+}
+
+print_status() {
+    local n=`pgrep -f /usr/sbin/doorknob | wc -l`
+    case $n in
+	1) echo doorknob running `pgrep -f /usr/sbin/doorknob`; exit 0;;
+	0) echo doorknob not running;;
+	*) echo Multiple doorknob instances running;;
+    esac
+    exit 1
+}
 
 case "$1" in
-start|"") /usr/sbin/doorknob;;
-stop) pkill -f /usr/sbin/doorknob;;
-restart) $0 start && $0 stop;;
+    start|"") start_doorknob;;
+    stop)     stop_doorknob;;
+    restart)  $0 stop && $0 start;;
+    status)   print_status;;
+    *) echo Unexpected command $1; exit 1;;
 esac
+
+exit 0
