@@ -74,7 +74,7 @@ out:
 	if (foreground)
 		puts(log);
 	else
-		syslog(LOG_INFO, log);
+		syslog(LOG_INFO, "%s", log);
 }
 
 static char *must_strdup(const char *str)
