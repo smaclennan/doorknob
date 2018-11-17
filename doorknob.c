@@ -40,12 +40,14 @@ static int starttls;
 static int rewrite_from;
 
 static int foreground;
+static long debug;
+
 static void logmsg(const char *fmt, ...)
 {
 	va_list ap;
 
 	va_start(ap, fmt);
-	if (foreground)
+	if (debug)
 		vprintf(fmt, ap);
 	else
 		vsyslog(LOG_INFO, fmt, ap);
@@ -87,9 +89,6 @@ static char *must_strdup(const char *str)
 	return new;
 }
 
-// SAM This is not optimal... curl lets us keep the connection open
-// and send multiple emails at once.
-
 static int looking_for_from;
 static size_t read_callback(char *buffer, size_t size, size_t nitems, void *fp)
 {
@@ -102,22 +101,15 @@ static size_t read_callback(char *buffer, size_t size, size_t nitems, void *fp)
 					sprintf(p + 1, "%s>\n", mail_from);
 				else
 					sprintf(buffer, "From: %s\n", mail_from);
-			}
+			} else if (*buffer == '\n' || *buffer == '\r')
+				// end of header - no From
+				looking_for_from = 0;
 			return strlen(buffer);
 		}
 		return 0;
 	}
 
 	return fread(buffer, size, nitems, fp);
-}
-
-size_t header_callback(char *buffer, size_t size, size_t nitems, void *userdata)
-{
-	size *= nitems;
-
-	printf(">>> %.*s", (int)size, buffer);
-
-	return size;
 }
 
 static int smtp_one(const char *fname)
@@ -167,17 +159,9 @@ static int smtp_one(const char *fname)
 	curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
 	curl_easy_setopt(curl, CURLOPT_READDATA, fp);
 	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-	curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
 
-#if 0
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-#endif
-
-#if 0
-	curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L); // SAM DBG
+	curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
 	// curl_easy_setopt(curl, CURLOPT_STDERR, file pointer);
-#endif
 
 	/* Send the message */
 	res = curl_easy_perform(curl);
@@ -256,17 +240,29 @@ static int read_event(int fd)
 	return read(fd, event, sizeof(event));
 }
 
+static void usage(void)
+{
+	puts("usage: doorknob [-FD]\n"
+		 "where: -F keeps doorknob in foreground\n"
+		 "       -D turns on debugging (enables foreground)");
+	exit(1);
+}
+
 int main(int argc, char *argv[])
 {
 	int c;
 
-	read_config();
-
-	while ((c = getopt(argc, argv, "F")) != EOF)
+	while ((c = getopt(argc, argv, "hFD")) != EOF)
 		switch (c) {
+		case 'h': usage();
 		case 'F': foreground = 1; break;
+		case 'D': debug = 1; break;
 		default: puts("Sorry!"); exit(1);
 		}
+
+	if (!foreground) debug = 0;
+
+	read_config();
 
 	if (chdir(MAILDIR)) {
 		perror(MAILDIR);
