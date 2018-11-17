@@ -128,7 +128,7 @@ static int smtp_one(const char *fname)
 		goto done;
 	}
 
-	char line[100], *p; // SAM FIXME
+	char line[128], *p;
 	int first_time = 1;
 	while (fgets(line, sizeof(line), fp) && *line != '\n') {
 		strtok(line, "\r\n");
@@ -155,13 +155,12 @@ static int smtp_one(const char *fname)
 	}
 	curl_easy_setopt(curl, CURLOPT_MAIL_FROM, mail_from);
 	curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
-	looking_for_from = rewrite_from;
 	curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
 	curl_easy_setopt(curl, CURLOPT_READDATA, fp);
 	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-
 	curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
-	// curl_easy_setopt(curl, CURLOPT_STDERR, file pointer);
+
+	looking_for_from = rewrite_from;
 
 	/* Send the message */
 	res = curl_easy_perform(curl);
