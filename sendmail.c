@@ -57,7 +57,7 @@ static int create_tmp_file(void)
 }
 
 static size_t total_len, total_write;
-static int my_write(int fd, void *buf, size_t len)
+static int my_write(int fd, const void *buf, size_t len)
 {
 	total_len += len;
 	int n = write(fd, buf, len);
@@ -65,19 +65,85 @@ static int my_write(int fd, void *buf, size_t len)
 	return n;
 }
 
+static void add_to_buffer(const char *line, ssize_t len, char **buffer, size_t *blen)
+{
+	*buffer = realloc(*buffer, *blen + len);
+	if (!*buffer) {
+		fputs("Out of buffer space!\n", stderr);
+		exit(1);
+	}
+	memcpy(*buffer + *blen, line, len);
+	*blen += len;
+}
+
+static void out_one(const char *to, int fd)
+{
+	int len = strlen(to);
+	my_write(fd, to, len);
+	my_write(fd, "\n", 1);
+}
+
+static void output_to(char *line, int fd)
+{
+	char *to, *p;
+
+	line += 3;
+	if (*line != ':') ++line; // Bcc
+	while ((to = strtok(line, ",\r\n"))) {
+		line = NULL;
+		while (isspace(*to)) ++to;
+		if ((p = strchr(to, '<'))) {
+			to = p + 1;
+			if ((p = strchr(to, '>')))
+				*p = 0;
+			out_one(to, fd);
+		} else
+			out_one(to, fd);
+	}
+}
+
+static void look_for_to(int fd)
+{
+	char *line = NULL, *buffer = NULL;
+	size_t len = 0, blen = 0, count = 0;
+	ssize_t n;
+
+	while ((n = getline(&line, &len, stdin)) != -1) {
+		add_to_buffer(line, n, &buffer, &blen);
+
+		if (strncasecmp(line, "To:", 3) == 0 ||
+			strncasecmp(line, "Cc:", 3) == 0 ||
+			strncasecmp(line, "Bcc:", 4) == 0) {
+			// found one
+			output_to(line, fd);
+			++count;
+		} else if (*line == '\n' || *line == '\r') {
+			// end of header
+			if (count == 0)
+				goto invalid;
+			my_write(fd, "\n", 1); // end of recipients
+			my_write(fd, buffer, blen);
+			free(line);
+			free(buffer);
+			return;
+		}
+	}
+invalid:
+	fputs("Invalid header\n", stderr);
+	exit(1);
+}
+
 int main(int argc, char *argv[])
 {
-	int c;
+	int c, evil_t = 0;
 
 	while ((c = getopt(argc, argv, "it")) != EOF)
 		switch (c) {
 		case 'i': break;
-		case 't':
-			fputs("Sorry, we don't support -t yet.\n", stderr);
-			exit(1);
+		case 't': evil_t = 1; break;
 		}
 
-	if (optind == argc) {
+	if (optind == argc && !evil_t) {
 		fprintf(stderr, "No recipients\n");
 		exit(1);
 	}
@@ -101,12 +167,16 @@ int main(int argc, char *argv[])
 
 	int fd = create_tmp_file();
 
-	// Write out the recipients
-	for (int i = optind; i < argc; ++i) {
-		my_write(fd, argv[i], strlen(argv[i]));
+	if (evil_t)
+		look_for_to(fd);
+	else {
+		// Write out the recipients
+		for (int i = optind; i < argc; ++i) {
+			my_write(fd, argv[i], strlen(argv[i]));
+			my_write(fd, "\n", 1);
+		}
 		my_write(fd, "\n", 1);
 	}
-	my_write(fd, "\n", 1);
 
 	// Write out the from
 	char from[128], *p;
