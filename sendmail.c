@@ -91,8 +91,11 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	char hostname[100];
-	gethostname(hostname, sizeof(hostname));
+	char *hostname = getenv("HOSTNAME");
+	if (!hostname) {
+		hostname = malloc(100);
+		gethostname(hostname, 100);
+	}
 
 	int fd = create_tmp_file();
 

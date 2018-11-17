@@ -18,6 +18,9 @@ address goes through unchanged. However if the recipient is local
 (root) then it is send to the One True User. This means all your cron
 output gets sent to the right place.
 
+Hint: It is recommended that HOSTNAME be set with the fully qualified
+      host name.
+
 
 Validation and Security
 -----------------------
