@@ -1,0 +1,29 @@
+#!/bin/sh -e
+
+# SAM Not really a proper package...
+
+PRGNAM=doorknob
+VERSION=${VERSION:-1.0}
+BUILD=${BUILD:-1}
+ARCH=`uname -m`
+
+CWD=$(pwd)
+TMP=${TMP:-/tmp}
+OUTPUT=${OUTPUT:-$TMP}
+PKG=$TMP/package-$PRGNAM
+rm -rf $PKG
+
+make
+make DESTDIR=$PKG install
+
+install -D rc.doorknob $PKG/etc/rc.d/rc.doorknob
+chmod +x /etc/rc.d/rc.doorknob
+
+install -D doorknob.conf $PKG/etc/doorknob.conf.new
+
+mkdir -p $PKG/install
+cat $CWD/slack-desc > $PKG/install/slack-desc
+cat $CWD/doinst.sh > $PKG/install/doinst.sh
+
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}

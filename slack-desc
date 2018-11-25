@@ -1,0 +1,12 @@
+	|-----handy-ruler------------------------------------------------------|
+doorknob: doorknob - SMTP (mail) forwarder
+doorknob:
+doorknob: Doorknob is meant to be used on machines where you want to forward all
+doorknob: of the mail to one mail account. Example use cases are laptops where
+doorknob: you want to forward all your mail to say gmail no matter who it is
+doorknob: really for. Or routers. Or work machines with overly strict email
+doorknob: policies :(
+doorknob:
+doorknob:
+doorknob:
+doorknob:
