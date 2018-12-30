@@ -200,7 +200,6 @@ static void read_config(void)
 			NEED_VAL;
 			smtp_user = must_strdup(val);
 		} else if (strcmp(key, "smtp-password") == 0) {
-			// SAM this should be at least trivially encrypted
 			NEED_VAL;
 			smtp_passwd = must_strdup(val);
 		} else if (strcmp(key, "mail-from") == 0) {
