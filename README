@@ -22,6 +22,14 @@ Hint: It is recommended that HOSTNAME be set with the fully qualified
       host name.
 
 
+rc.doorknob
+-----------
+
+Tested with Slackware and also with Ubuntu. For Ubuntu copy
+rc.doorknob to /etc/init.d/doorknob. This should work for
+RedHat/Centos too, but I haven't tested it.
+
+
 Validation and Security
 -----------------------
 

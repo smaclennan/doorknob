@@ -5,13 +5,13 @@
 # Sean MacLennan <seanm@seanm.ca>
 
 ### BEGIN INIT INFO
-# Provides:          doorknob mail-transport-agent
+# Provides:          doorknob mail-forwarder
 # Required-Start:    $local_fs $remote_fs $syslog $named $network $time
 # Required-Stop:     $local_fs $remote_fs $syslog $named $network
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Doorknob SMTP forwarder
-# Description:       doorknob is a Mail Transport agent
+# Description:       doorknob is a simple SMTP mail forwarder
 ### END INIT INFO
 
 start_doorknob() {
