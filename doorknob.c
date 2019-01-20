@@ -93,7 +93,7 @@ size_t strlcat(char *dst, const char *src, size_t dstsize)
 }
 #endif
 
-#ifdef USE_CURL
+#ifdef WANT_CURL
 #include <curl/curl.h>
 
 static void logsmtp(const char *fname, struct curl_slist *to, CURLcode res)
@@ -111,11 +111,13 @@ static void logsmtp(const char *fname, struct curl_slist *to, CURLcode res)
 
 	if (res == 0)
 		strlcat(log, " OK", sizeof(log));
-	else
-		snprintf(log + n, sizeof(log) - n,
-				 " %d: %s", res, curl_easy_strerror(res));
+	else {
+		int n = strlen(log);
+		if (sizeof(log) > n)
+			snprintf(log + n, sizeof(log) - n,
+					 " %d: %s", res, curl_easy_strerror(res));
+	}
 
-out:
 	logmsg("%s", log);
 }
 

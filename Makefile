@@ -7,6 +7,7 @@ include config.mk
 D = -O2
 CFLAGS += -Wall $(D:1=-g)
 
+#CFLAGS += -DWANT_CURL
 #LIBS += -lcurl
 
 CFLAGS += -DWANT_OPENSSL
