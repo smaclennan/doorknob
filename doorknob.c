@@ -49,6 +49,9 @@ static int use_ssl;
 #include "openssl.c"
 #endif
 
+static short smtp_port = 25;
+static uint32_t smtp_addr; // ipv4 only
+
 static void logmsg(const char *fmt, ...)
 {
 	va_list ap;
@@ -293,31 +296,11 @@ static int smtp_one(const char *fname)
 {
 	char logout[1024];
 	char buffer[1024];
-	short port = 25;
 	int rc = -1;
 
 	*logout = 0;
 	strlcat(logout, fname, sizeof(logout));
 
-	char *server = strstr(smtp_server, "://");
-	if (server) {
-		*server = 0;
-		server += 3;
-#ifdef WANT_OPENSSL
-		if (strcmp(smtp_server, "smtps") == 0) {
-			port = 465;
-			use_ssl = 1;
-			if (debug) puts("Using SSL");
-		}
-#endif
-	} else
-		server = smtp_server;
-
-	struct hostent *host = gethostbyname(server);
-	if (!host) {
-		logmsg("Unable to get host %s", server);
-		return -1;
-	}
 
 	FILE *fp = fopen(fname, "r");
 	if (!fp) {
@@ -337,8 +320,8 @@ static int smtp_one(const char *fname)
 	struct sockaddr_in sock_name;
 	memset(&sock_name, 0, sizeof(sock_name));
 	sock_name.sin_family = AF_INET;
-	sock_name.sin_addr.s_addr = *(unsigned *)host->h_addr_list[0];
-	sock_name.sin_port = htons(port);
+	sock_name.sin_addr.s_addr = smtp_addr;
+	sock_name.sin_port = htons(smtp_port);
 
 	if (connect(sock, (struct sockaddr *)&sock_name, sizeof(sock_name))) {
 		logmsg("connect: %s", strerror(errno));
@@ -347,7 +330,7 @@ static int smtp_one(const char *fname)
 
 #ifdef WANT_OPENSSL
 	if (use_ssl)
-		if (openssl_open(sock, server))
+		if (openssl_open(sock, smtp_server))
 			goto done;
 #endif
 
@@ -483,6 +466,29 @@ static void read_config(void)
 		logmsg("You must set smtp-user AND smtp-password");
 		exit(1);
 	}
+
+#ifndef WANT_CURL
+	char *server = strstr(smtp_server, "://");
+	if (server) {
+		server += 3;
+#ifdef WANT_OPENSSL
+		if (strncmp(smtp_server, "smtps", 5) == 0) {
+			smtp_port = 465;
+			use_ssl = 1;
+			if (debug) puts("Using SSL");
+		}
+#endif
+		smtp_server = server;
+	}
+
+	struct hostent *host = gethostbyname(smtp_server);
+	if (!host) {
+		logmsg("Unable to get host %s", server);
+		exit(1);
+	}
+
+	smtp_addr = *(uint32_t *)host->h_addr_list[0];
+#endif
 }
 
 // This is really to get around the read() return warning.
