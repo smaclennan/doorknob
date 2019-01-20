@@ -9,6 +9,9 @@ CFLAGS += -Wall $(D:1=-g)
 
 #LIBS += -lcurl
 
+CFLAGS += -DWANT_OPENSSL
+LIBS += -lssl -lcrypto
+
 # If you set V=1 on the command line then you will get the actual
 # commands displayed.
 V	      = @
@@ -21,8 +24,8 @@ QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
 
 all: doorknob sendmail mailq
 
-doorknob: doorknob.c
-	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
+doorknob: doorknob.c openssl.c
+	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $< $(LIBS)
 
 sendmail: sendmail.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+

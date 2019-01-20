@@ -42,6 +42,12 @@ static int rewrite_from;
 static int foreground;
 static long debug;
 
+#ifdef WANT_OPENSSL
+static int use_ssl;
+
+#include "openssl.c"
+#endif
+
 static void logmsg(const char *fmt, ...)
 {
 	va_list ap;
@@ -250,10 +256,30 @@ static int build_auth(char *buffer, int len)
 	return 0;
 }
 
+static int read_socket(int sock, void *buf, int count)
+{
+#ifdef WANT_OPENSSL
+	if (use_ssl)
+		return openssl_read(buf, count);
+	else
+#endif
+		return read(sock, buf, count);
+}
+
+static int write_socket(int sock, const void *buf, int count)
+{
+#ifdef WANT_OPENSSL
+	if (use_ssl)
+		return openssl_write(buf, count);
+	else
+#endif
+		return write(sock, buf, count);
+}
+
 static int expect_status(int sock, int status)
 {
 	char reply[1501];
-	int n = read(sock, reply, sizeof(reply) - 1);
+	int n = read_socket(sock, reply, sizeof(reply) - 1);
 	if (n <= 0) {
 		perror("read");
 		return -1;
@@ -277,7 +303,7 @@ static int send_str(int sock, const char *str, int status)
 	if (debug) printf("C: %s", str);
 
 	int len = strlen(str);
-	int n = write(sock, str, len);
+	int n = write_socket(sock, str, len);
 	if (n != len) {
 		if (n < 0)
 			perror("write");
@@ -295,7 +321,7 @@ static int send_body(int sock, FILE *fp)
 	int n;
 
 	while ((n = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
-		int wrote = write(sock, buffer, n);
+		int wrote = write_socket(sock, buffer, n);
 		if (wrote != n)
 			return -1;
 	}
@@ -314,18 +340,23 @@ static int smtp_one(const char *fname)
 	short port = 25;
 	int rc = -1;
 
-	char *p = strstr(smtp_server, "://");
-	if (p) {
-		*p = 0;
-		p += 3;
-// SAM		if (strcmp(smtp_server, "smtps") == 0)
-// SAM			port = 465;
+	char *server = strstr(smtp_server, "://");
+	if (server) {
+		*server = 0;
+		server += 3;
+#ifdef WANT_OPENSSL
+		if (strcmp(smtp_server, "smtps") == 0) {
+			port = 465;
+			use_ssl = 1;
+			if (debug) puts("Using SSL");
+		}
+#endif
 	} else
-		p = smtp_server;
+		server = smtp_server;
 
-	struct hostent *host = gethostbyname(p);
+	struct hostent *host = gethostbyname(server);
 	if (!host) {
-		printf("Unable to get host %s\n", p);
+		printf("Unable to get host %s\n", server);
 		return -1;
 	}
 
@@ -354,6 +385,12 @@ static int smtp_one(const char *fname)
 		perror("connect");
 		goto done;
 	}
+
+#ifdef WANT_OPENSSL
+	if (use_ssl)
+		if (openssl_open(sock, server))
+			goto done;
+#endif
 
 	expect_status(sock, 220);
 
@@ -388,7 +425,7 @@ static int smtp_one(const char *fname)
 	if (send_str(sock, buffer, 250))
 		goto done;
 
-	char line[128];
+	char line[128], *p;
 	int first_time = 1;
 	int count = 0;
 	while (fgets(line, sizeof(line), fp) && *line != '\n') {
@@ -420,6 +457,9 @@ static int smtp_one(const char *fname)
 
 done:
 	fclose(fp);
+#ifdef WANT_OPENSSL
+    openssl_close();
+#endif
 	if (sock != -1)
 		close(sock);
 
