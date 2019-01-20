@@ -86,7 +86,6 @@ size_t strlcat(char *dst, const char *src, size_t dstsize)
 		if (left > srclen)
 			strcpy(dst + dstlen, src);
 		else {
-			puts("TRUNC");
 			strncpy(dst + dstlen, src, left - 1);
 			dst[dstsize - 1] = 0;
 		}
