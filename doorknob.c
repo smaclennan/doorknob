@@ -34,6 +34,7 @@
 static char *smtp_server;
 static char *smtp_user;
 static char *smtp_passwd;
+static char *smtp_auth;
 static char *mail_from;
 static char hostname[HOST_NAME_MAX + 1];
 static int starttls;
@@ -70,7 +71,6 @@ static char *must_strdup(const char *str)
 	return new;
 }
 
-//#define USE_CURL
 #ifdef USE_CURL
 #include <curl/curl.h>
 
@@ -192,69 +192,6 @@ done:
 
 // SAM FIXME logging
 
-// SAM FIXME move base64 into program?
-static char alphabet[] = {
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	"abcdefghijklmnopqrstuvwxyz"
-	"0123456789"
-	"-_"
-};
-
-/* encode 3 bytes into 4 bytes
- *  < 6 | 2 > < 4 | 4 > < 2 | 6 >
- */
-static void encode_block(char *dst, const uint8_t *src)
-{
-	*dst++ = alphabet[src[0] >> 2];
-	*dst++ = alphabet[((src[0] << 4) & 0x30) | (src[1] >> 4)];
-	*dst++ = alphabet[((src[1] << 2) & 0x3c) | (src[2] >> 6)];
-	*dst++ = alphabet[src[2] & 0x3f];
-}
-
-/* dst is returned null terminated but the return does not include the null. */
-static int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
-{
-	int cnt = 0;
-
-	while (len >= 3) {
-		encode_block(dst, src);
-		dst += 4;
-		src += 3;
-		len -= 3;
-		cnt += 4;
-	}
-	if (len > 0) {
-		uint8_t block[3];
-		memset(block, 0, 3);
-		memcpy(block, src, len);
-		encode_block(dst, block);
-		dst[3] = '=';
-		if (len == 1) dst[2] = '=';
-		dst += 4;
-		cnt += 4;
-	}
-
-	*dst = '\0';
-	return cnt;
-}
-
-static int build_auth(char *buffer, int len)
-{   /* smtp_user \0 smtp_user \0 smtp_passwd */
-	char encode[1024];
-	int len1 = strlen(smtp_user) + 1;
-	int n = strlen(smtp_passwd) + len1 + len1;
-
-	memcpy(encode, smtp_user, len1);
-	memcpy(encode + len1, smtp_user, len1);
-	strcpy(encode + len1 + len1, smtp_passwd);
-
-	if (base64_encode(buffer, len - 2, (uint8_t *)encode, n) <= 0) {
-		puts("base64_encode failed");
-		return -1;
-	}
-	strcat(buffer, "\r\n"); // we left room
-	return 0;
-}
 
 static int read_socket(int sock, void *buf, int count)
 {
@@ -404,17 +341,10 @@ static int smtp_one(const char *fname)
 		if (send_str(sock, "AUTH PLAIN\r\n", 334))
 			goto done;
 
-		if (build_auth(buffer, sizeof(buffer))) {
-			puts("base64_encode failed");
-			goto done;
-		}
+		snprintf(buffer, sizeof(buffer), "%s\r\n", smtp_auth);
 #else
 		/* This saves a message and reply */
-		strcpy(buffer, "AUTH PLAIN ");
-		if (build_auth(buffer + 11, sizeof(buffer) - 11)) {
-			puts("base64_encode failed");
-			goto done;
-		}
+		snprintf(buffer, sizeof(buffer), "AUTH PLAIN %s\r\n", smtp_auth);
 #endif
 
 		if (send_str(sock, buffer, 235))
@@ -495,6 +425,9 @@ static void read_config(void)
 		} else if (strcmp(key, "smtp-password") == 0) {
 			NEED_VAL;
 			smtp_passwd = must_strdup(val);
+		} else if (strcmp(key, "smtp-auth") == 0) {
+			NEED_VAL;
+			smtp_auth = must_strdup(val);
 		} else if (strcmp(key, "mail-from") == 0) {
 			NEED_VAL;
 			mail_from = must_strdup(val);
