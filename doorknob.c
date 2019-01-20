@@ -442,11 +442,23 @@ static void read_config(void)
 		} else if (strcmp(key, "mail-from") == 0) {
 			NEED_VAL;
 			mail_from = must_strdup(val);
-		} else if (strcmp(key, "starttls") == 0)
+		} else if (strcmp(key, "starttls") == 0) {
+#ifdef WANT_CURL
 			starttls = 1;
-		else if (strcmp(key, "rewrite-from") == 0)
+#else
+			starttls = 0; // compiler shutup
+			logmsg("starttls currently only in curl");
+			exit(1);
+#endif
+		} else if (strcmp(key, "rewrite-from") == 0) {
+#ifdef WANT_CURL
 			rewrite_from = 1;
-		else
+#else
+			rewrite_from = 0; // compiler shutup
+			logmsg("rewrite-from currently only in curl");
+			exit(1);
+#endif
+		} else
 			logmsg("Unexpected key %s", key);
 	}
 
@@ -487,6 +499,11 @@ static void read_config(void)
 	}
 
 	smtp_addr = *(uint32_t *)host->h_addr_list[0];
+
+	if (gethostname(hostname, sizeof(hostname))) {
+		logmsg("hostname: %s", strerror(errno));
+		exit(1);
+	}
 #endif
 }
 
@@ -520,21 +537,10 @@ int main(int argc, char *argv[])
 		default: puts("Sorry!"); exit(1);
 		}
 
-	if (!foreground) debug = 0;
-
 	read_config();
 
-	if (gethostname(hostname, sizeof(hostname))) {
-		logmsg("hostname: %s", strerror(errno));
-		exit(1);
-	}
-
-	if (chdir(MAILDIR)) {
+	if (chdir(MAILDIR "/queue")) {
 		logmsg(MAILDIR ": %s", strerror(errno));
-		exit(1);
-	}
-	if (chdir("queue")) {
-		logmsg(MAILDIR "/queue: %s", strerror(errno));
 		exit(1);
 	}
 
