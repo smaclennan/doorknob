@@ -30,12 +30,12 @@
 #include <poll.h>
 #include <syslog.h>
 #include <sys/inotify.h>
-#include <curl/curl.h>
 
 static char *smtp_server;
 static char *smtp_user;
 static char *smtp_passwd;
 static char *mail_from;
+static char hostname[HOST_NAME_MAX + 1];
 static int starttls;
 static int rewrite_from;
 
@@ -54,6 +54,21 @@ static void logmsg(const char *fmt, ...)
 	va_end(ap);
 }
 
+static char *must_strdup(const char *str)
+{
+	char *new = strdup(str);
+	if (!new) {
+		fputs("Out of memory!\n", stderr);
+		exit(1);
+	}
+	return new;
+}
+
+//#define USE_CURL
+#ifdef USE_CURL
+#include <curl/curl.h>
+
+// SAM fixme
 static void logsmtp(const char *fname, struct curl_slist *to, CURLcode res)
 {
 	char log[1024];
@@ -77,16 +92,6 @@ out:
 		puts(log);
 	else
 		syslog(LOG_INFO, "%s", log);
-}
-
-static char *must_strdup(const char *str)
-{
-	char *new = strdup(str);
-	if (!new) {
-		fputs("Out of memory!\n", stderr);
-		exit(1);
-	}
-	return new;
 }
 
 static int looking_for_from;
@@ -173,6 +178,264 @@ done:
 
 	return res;
 }
+#else
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+
+// SAM FIXME logging
+
+#define AUTH "c2Vhbm1Ac2Vhbm0uY2EAc2Vhbm1Ac2Vhbm0uY2EAZmNwZGtqMDR4dg==\r\n"
+
+static const char pad = '='; // SAM FIXME
+
+static char alphabet[] = {
+	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	"abcdefghijklmnopqrstuvwxyz"
+	"0123456789"
+	"-_"
+};
+
+// SAM FIXME
+/* Note: the len includes the NULL */
+static int base64_encoded_len(int len)
+{
+	return (len + 2) / 3 * 4;
+}
+
+/* encode 3 bytes into 4 bytes
+ *  < 6 | 2 > < 4 | 4 > < 2 | 6 >
+ */
+static void encode_block(char *dst, const uint8_t *src)
+{
+	*dst++ = alphabet[src[0] >> 2];
+	*dst++ = alphabet[((src[0] << 4) & 0x30) | (src[1] >> 4)];
+	*dst++ = alphabet[((src[1] << 2) & 0x3c) | (src[2] >> 6)];
+	*dst++ = alphabet[src[2] & 0x3f];
+}
+
+/* dst is returned null terminated but the return does not include the null. */
+static int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
+{
+	int cnt = 0;
+
+	if (base64_encoded_len(len) >= dlen)
+		return -1;
+
+	while (len >= 3) {
+		encode_block(dst, src);
+		dst += 4;
+		src += 3;
+		len -= 3;
+		cnt += 4;
+	}
+	if (len > 0) {
+		uint8_t block[3];
+		memset(block, 0, 3);
+		memcpy(block, src, len);
+		encode_block(dst, block);
+		dst[3] = pad;
+		if (len == 1) dst[2] = pad;
+		dst += 4;
+		cnt += 4;
+	}
+
+	*dst = '\0';
+	return cnt;
+}
+
+static int build_auth(char *buffer, int len)
+{   /* smtp_user \0 smtp_user \0 smtp_passwd */
+	char encode[1024];
+	int len1 = strlen(smtp_user) + 1;
+	int n = strlen(smtp_passwd) + len1 + len1;
+
+	memcpy(encode, smtp_user, len1);
+	memcpy(encode + len1, smtp_user, len1);
+	strcpy(encode + len1 + len1, smtp_passwd);
+
+	if (base64_encode(buffer, len - 2, (uint8_t *)encode, n) <= 0) {
+		puts("base64_encode failed");
+		return -1;
+	}
+	strcat(buffer, "\r\n"); // we left room
+	return 0;
+}
+
+static int expect_status(int sock, int status)
+{
+	char reply[1501];
+	int n = read(sock, reply, sizeof(reply) - 1);
+	if (n <= 0) {
+		perror("read");
+		return -1;
+	}
+	reply[n] = 0;
+
+	printf("S: %s", reply); // SAM DBG
+
+	int got = strtol(reply, NULL, 10);
+	if (status != got) {
+		printf("Expected %d got %s", status, reply);
+		return 1;
+	}
+
+	return 0;
+}
+
+/* Returns 0 on success, -1 on I/O error, and 1 if status is wrong */
+static int send_str(int sock, const char *str, int status)
+{
+	printf("C: %s", str); // SAM DBG
+
+	int len = strlen(str);
+	int n = write(sock, str, len);
+	if (n != len) {
+		if (n < 0)
+			perror("write");
+		else
+			printf("Short write: %d/%d\n", n, len);
+		return -1;
+	}
+
+	return expect_status(sock, status);
+}
+
+static int send_body(int sock, FILE *fp)
+{
+	char buffer[4096];
+	int n;
+
+	while ((n = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+		int wrote = write(sock, buffer, n);
+		if (wrote != n)
+			return -1;
+	}
+
+	// SAM check fp
+
+	return send_str(sock, "\r\n.\r\n", 250);
+}
+
+static int smtp_one(const char *fname)
+{
+	char buffer[1024];
+	short port = 25;
+	int rc = -1;
+
+	char *p = strstr(smtp_server, "://");
+	if (p) {
+		*p = 0;
+		p += 3;
+// SAM		if (strcmp(smtp_server, "smtps") == 0)
+// SAM			port = 465;
+	} else
+		p = smtp_server;
+
+	struct hostent *host = gethostbyname(p);
+	if (!host) {
+		printf("Unable to get host %s\n", p);
+		return -1;
+	}
+
+	FILE *fp = fopen(fname, "r");
+	if (!fp) {
+		perror(fname);
+		return -1;
+	}
+
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == -1) {
+		perror("socket");
+		goto done;
+	}
+
+	int flags = 1;
+	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags));
+
+	struct sockaddr_in sock_name;
+	memset(&sock_name, 0, sizeof(sock_name));
+	sock_name.sin_family = AF_INET;
+	sock_name.sin_addr.s_addr = *(unsigned *)host->h_addr_list[0];
+	sock_name.sin_port = htons(port);
+
+	if (connect(sock, (struct sockaddr *)&sock_name, sizeof(sock_name))) {
+		perror("connect");
+		goto done;
+	}
+
+	expect_status(sock, 220);
+
+	snprintf(buffer, sizeof(buffer), "EHLO %s\r\n", hostname);
+	if (send_str(sock, buffer, 250))
+		goto done;
+
+	if (smtp_user && smtp_passwd) {
+#if 0
+		/* This is probably more correct */
+		if (send_str(sock, "AUTH PLAIN\r\n", 334))
+			goto done;
+
+		if (build_auth(buffer, sizeof(buffer))) {
+			puts("base64_encode failed");
+			goto done;
+		}
+#else
+		/* This saves a message and reply */
+		strcpy(buffer, "AUTH PLAIN ");
+		if (build_auth(buffer + 11, sizeof(buffer) - 11)) {
+			puts("base64_encode failed");
+			goto done;
+		}
+#endif
+
+		if (send_str(sock, buffer, 235))
+			goto done;
+	}
+
+	snprintf(buffer, sizeof(buffer), "MAIL FROM:<%s>\r\n", mail_from);
+	if (send_str(sock, buffer, 250))
+		goto done;
+
+	char line[128];
+	int first_time = 1;
+	int count = 0;
+	while (fgets(line, sizeof(line), fp) && *line != '\n') {
+		strtok(line, "\r\n");
+		if ((p = strchr(line, '@'))) {
+			snprintf(buffer, sizeof(buffer), "RCPT TO:<%s>\r\n", line);
+		} else {
+			if (first_time) {
+				first_time = 0;
+				snprintf(buffer, sizeof(buffer), "RCPT TO:<%s>\r\n", mail_from);
+			} else
+				continue;
+		}
+		int n = send_str(sock, buffer, 250);
+		if (n == 0)
+			++count;
+		else if (n < 0)
+			goto done;
+		// else	ok to fail
+	}
+
+	send_str(sock, "DATA\r\n", 354);
+
+	send_body(sock, fp);
+
+	send_str(sock, "QUIT\r\n", 221);
+
+	rc = 0; // success
+
+done:
+	fclose(fp);
+	if (sock != -1)
+		close(sock);
+
+	return rc;
+}
+#endif
 
 #define NEED_VAL if (!val) {					\
 		printf("%s needs a value\n", key);		\
@@ -261,6 +524,11 @@ int main(int argc, char *argv[])
 	if (!foreground) debug = 0;
 
 	read_config();
+
+	if (gethostname(hostname, sizeof(hostname))) {
+		perror("hostname");
+		exit(1);
+	}
 
 	if (chdir(MAILDIR)) {
 		perror(MAILDIR);
