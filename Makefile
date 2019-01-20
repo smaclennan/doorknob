@@ -7,6 +7,8 @@ include config.mk
 D = -O2
 CFLAGS += -Wall $(D:1=-g)
 
+#LIBS += -lcurl
+
 # If you set V=1 on the command line then you will get the actual
 # commands displayed.
 V	      = @
@@ -20,7 +22,7 @@ QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
 all: doorknob sendmail mailq
 
 doorknob: doorknob.c
-	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ -lcurl
+	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
 
 sendmail: sendmail.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+

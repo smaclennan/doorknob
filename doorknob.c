@@ -186,23 +186,13 @@ done:
 
 // SAM FIXME logging
 
-#define AUTH "c2Vhbm1Ac2Vhbm0uY2EAc2Vhbm1Ac2Vhbm0uY2EAZmNwZGtqMDR4dg==\r\n"
-
-static const char pad = '='; // SAM FIXME
-
+// SAM FIXME move base64 into program?
 static char alphabet[] = {
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	"abcdefghijklmnopqrstuvwxyz"
 	"0123456789"
 	"-_"
 };
-
-// SAM FIXME
-/* Note: the len includes the NULL */
-static int base64_encoded_len(int len)
-{
-	return (len + 2) / 3 * 4;
-}
 
 /* encode 3 bytes into 4 bytes
  *  < 6 | 2 > < 4 | 4 > < 2 | 6 >
@@ -220,9 +210,6 @@ static int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
 {
 	int cnt = 0;
 
-	if (base64_encoded_len(len) >= dlen)
-		return -1;
-
 	while (len >= 3) {
 		encode_block(dst, src);
 		dst += 4;
@@ -235,8 +222,8 @@ static int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
 		memset(block, 0, 3);
 		memcpy(block, src, len);
 		encode_block(dst, block);
-		dst[3] = pad;
-		if (len == 1) dst[2] = pad;
+		dst[3] = '=';
+		if (len == 1) dst[2] = '=';
 		dst += 4;
 		cnt += 4;
 	}
@@ -273,7 +260,7 @@ static int expect_status(int sock, int status)
 	}
 	reply[n] = 0;
 
-	printf("S: %s", reply); // SAM DBG
+	if (debug) printf("S: %s", reply);
 
 	int got = strtol(reply, NULL, 10);
 	if (status != got) {
@@ -287,7 +274,7 @@ static int expect_status(int sock, int status)
 /* Returns 0 on success, -1 on I/O error, and 1 if status is wrong */
 static int send_str(int sock, const char *str, int status)
 {
-	printf("C: %s", str); // SAM DBG
+	if (debug) printf("C: %s", str);
 
 	int len = strlen(str);
 	int n = write(sock, str, len);
@@ -313,7 +300,10 @@ static int send_body(int sock, FILE *fp)
 			return -1;
 	}
 
-	// SAM check fp
+	if (ferror(fp)) {
+		perror("read file");
+		return -1;
+	}
 
 	return send_str(sock, "\r\n.\r\n", 250);
 }
