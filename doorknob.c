@@ -54,7 +54,7 @@ static void logmsg(const char *fmt, ...)
 	va_list ap;
 
 	va_start(ap, fmt);
-	if (debug || foreground) {
+	if (debug) {
 		vprintf(fmt, ap);
 		putchar('\n');
 	} else
@@ -508,8 +508,8 @@ int main(int argc, char *argv[])
 	while ((c = getopt(argc, argv, "hFD")) != EOF)
 		switch (c) {
 		case 'h': usage();
+		case 'D': debug = 1; // fall thru
 		case 'F': foreground = 1; break;
-		case 'D': debug = 1; break;
 		default: puts("Sorry!"); exit(1);
 		}
 
