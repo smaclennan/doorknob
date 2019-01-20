@@ -218,7 +218,7 @@ static int expect_status(int sock, int status)
 	char reply[1501];
 	int n = read_socket(sock, reply, sizeof(reply) - 1);
 	if (n <= 0) {
-		perror("read");
+		logmsg("read: %s\n", strerror(errno));
 		return -1;
 	}
 	reply[n] = 0;
@@ -227,7 +227,7 @@ static int expect_status(int sock, int status)
 
 	int got = strtol(reply, NULL, 10);
 	if (status != got) {
-		printf("Expected %d got %s", status, reply);
+		logmsg("Expected %d got %s\n", status, reply);
 		return 1;
 	}
 
@@ -243,9 +243,9 @@ static int send_str(int sock, const char *str, int status)
 	int n = write_socket(sock, str, len);
 	if (n != len) {
 		if (n < 0)
-			perror("write");
+			logmsg("write %s: %s\n", str, strerror(errno));
 		else
-			printf("Short write: %d/%d\n", n, len);
+			logmsg("Short write: %d/%d\n", n, len);
 		return -1;
 	}
 
@@ -264,7 +264,7 @@ static int send_body(int sock, FILE *fp)
 	}
 
 	if (ferror(fp)) {
-		perror("read file");
+		logmsg("read file: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -293,19 +293,19 @@ static int smtp_one(const char *fname)
 
 	struct hostent *host = gethostbyname(server);
 	if (!host) {
-		printf("Unable to get host %s\n", server);
+		logmsg("Unable to get host %s\n", server);
 		return -1;
 	}
 
 	FILE *fp = fopen(fname, "r");
 	if (!fp) {
-		perror(fname);
+		logmsg("%s: %s\n", fname, strerror(errno));
 		return -1;
 	}
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
-		perror("socket");
+		logmsg("socket: %s\n", strerror(errno));
 		goto done;
 	}
 
@@ -319,7 +319,7 @@ static int smtp_one(const char *fname)
 	sock_name.sin_port = htons(port);
 
 	if (connect(sock, (struct sockaddr *)&sock_name, sizeof(sock_name))) {
-		perror("connect");
+		logmsg("connect: %s\n", strerror(errno));
 		goto done;
 	}
 
@@ -398,7 +398,7 @@ done:
 #endif
 
 #define NEED_VAL if (!val) {					\
-		printf("%s needs a value\n", key);		\
+		logmsg("%s needs a value\n", key);		\
 		continue;								\
 	}
 
@@ -406,7 +406,7 @@ static void read_config(void)
 {
 	FILE *fp = fopen(CONFIG_FILE, "r");
 	if (!fp) {
-		perror(CONFIG_FILE);
+		logmsg(CONFIG_FILE ": %s\n", strerror(errno));
 		exit(1);
 	}
 
@@ -436,22 +436,22 @@ static void read_config(void)
 		else if (strcmp(key, "rewrite-from") == 0)
 			rewrite_from = 1;
 		else
-			printf("Unexpected key %s\n", key);
+			logmsg("Unexpected key %s\n", key);
 	}
 
 	fclose(fp);
 
 	if (!smtp_server) {
-		fputs("You must set smtp-server\n", stderr);
+		logmsg("You must set smtp-server\n");
 		exit(1);
 	}
 	// For now let's require mail-from
 	if (!mail_from) {
-		fputs("You must set mail-from\n", stderr);
+		logmsg("You must set mail-from\n");
 		exit(1);
 	}
 	if (smtp_user && !smtp_passwd) {
-		fputs("You must set smtp-user AND smtp-password\n", stderr);
+		logmsg("You must set smtp-user AND smtp-password\n");
 		exit(1);
 	}
 }
@@ -476,6 +476,8 @@ int main(int argc, char *argv[])
 {
 	int c;
 
+	openlog("doorknob", 0, LOG_MAIL);
+
 	while ((c = getopt(argc, argv, "hFD")) != EOF)
 		switch (c) {
 		case 'h': usage();
@@ -489,35 +491,34 @@ int main(int argc, char *argv[])
 	read_config();
 
 	if (gethostname(hostname, sizeof(hostname))) {
-		perror("hostname");
+		logmsg("hostname: %s\n", strerror(errno));
 		exit(1);
 	}
 
 	if (chdir(MAILDIR)) {
-		perror(MAILDIR);
+		logmsg(MAILDIR ": %s\n", strerror(errno));
 		exit(1);
 	}
 	if (chdir("queue")) {
-		printf(MAILDIR "/queue: %s\n", strerror(errno));
+		logmsg(MAILDIR "/queue: %s\n", strerror(errno));
 		exit(1);
 	}
 
 	int fd = inotify_init();
 	if (fd < 0) {
-		perror("inotify_init");
+		logmsg("inotify_init: %s\n", strerror(errno));
 		exit(1);
 	}
 
 	int watch = inotify_add_watch(fd, ".", IN_CLOSE_WRITE | IN_MOVED_TO);
 	if (watch < 0) {
-		perror("inotify_add_watch");
+		logmsg("inotify_add_watch\n", strerror(errno));
 		exit(1);
 	}
 
 	if (foreground == 0) {
 		if (daemon(1, 0))
-			perror("daemon");
-		openlog("doorknob", 0, LOG_MAIL);
+			logmsg("daemon: %s\n", strerror(errno));
 	}
 
 	struct pollfd ufd = { .fd = fd, .events = POLLIN };
