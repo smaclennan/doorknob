@@ -54,9 +54,10 @@ static void logmsg(const char *fmt, ...)
 	va_list ap;
 
 	va_start(ap, fmt);
-	if (debug)
+	if (debug || foreground) {
 		vprintf(fmt, ap);
-	else
+		putchar('\n');
+	} else
 		vsyslog(LOG_INFO, fmt, ap);
 	va_end(ap);
 }
@@ -71,33 +72,51 @@ static char *must_strdup(const char *str)
 	return new;
 }
 
+#ifdef __linux__
+size_t strlcat(char *dst, const char *src, size_t dstsize)
+{
+	int dstlen = strlen(dst);
+	int srclen = strlen(src);
+	int left   = dstsize - dstlen;
+
+	if (left > 0) {
+		if (left > srclen)
+			strcpy(dst + dstlen, src);
+		else {
+			puts("TRUNC");
+			strncpy(dst + dstlen, src, left - 1);
+			dst[dstsize - 1] = 0;
+		}
+	}
+
+	return dstlen + srclen;
+}
+#endif
+
 #ifdef USE_CURL
 #include <curl/curl.h>
 
-// SAM fixme
 static void logsmtp(const char *fname, struct curl_slist *to, CURLcode res)
 {
 	char log[1024];
+	*log = 0;
 
-	int n = snprintf(log, sizeof(log), "%s", fname);
+	strlcat(log, fname, sizeof(log));
 
 	while (to) {
-		n += snprintf(log + n, sizeof(log) - n, " %s", to->data);
-		if (n >= sizeof(log)) goto out;
+		strlcat(log, " ", sizeof(log));
+		strlcat(log, to->data, sizeof(log));
 		to = to->next;
 	}
 
 	if (res == 0)
-		snprintf(log + n, sizeof(log) - n, " OK");
+		strlcat(log, " OK", sizeof(log));
 	else
 		snprintf(log + n, sizeof(log) - n,
 				 " %d: %s", res, curl_easy_strerror(res));
 
 out:
-	if (foreground)
-		puts(log);
-	else
-		syslog(LOG_INFO, "%s", log);
+	logmsg("%s", log);
 }
 
 static int looking_for_from;
@@ -135,7 +154,7 @@ static int smtp_one(const char *fname)
 	struct curl_slist *recipients = NULL;
 	CURL *curl = curl_easy_init();
 	if(!curl) {
-		logmsg("Unable to initialize curl\n");
+		logmsg("Unable to initialize curl");
 		goto done;
 	}
 
@@ -153,7 +172,7 @@ static int smtp_one(const char *fname)
 		}
 	}
 	if (recipients == NULL) {
-		logmsg("Hmmm... no to...\n");
+		logmsg("Hmmm... no to...");
 		goto done;
 	}
 
@@ -190,9 +209,6 @@ done:
 #include <arpa/inet.h>
 #include <netdb.h>
 
-// SAM FIXME logging
-
-
 static int read_socket(int sock, void *buf, int count)
 {
 #ifdef WANT_OPENSSL
@@ -218,7 +234,7 @@ static int expect_status(int sock, int status)
 	char reply[1501];
 	int n = read_socket(sock, reply, sizeof(reply) - 1);
 	if (n <= 0) {
-		logmsg("read: %s\n", strerror(errno));
+		logmsg("read: %s", strerror(errno));
 		return -1;
 	}
 	reply[n] = 0;
@@ -227,7 +243,7 @@ static int expect_status(int sock, int status)
 
 	int got = strtol(reply, NULL, 10);
 	if (status != got) {
-		logmsg("Expected %d got %s\n", status, reply);
+		logmsg("Expected %d got %s", status, reply);
 		return 1;
 	}
 
@@ -243,9 +259,9 @@ static int send_str(int sock, const char *str, int status)
 	int n = write_socket(sock, str, len);
 	if (n != len) {
 		if (n < 0)
-			logmsg("write %s: %s\n", str, strerror(errno));
+			logmsg("write %s: %s", str, strerror(errno));
 		else
-			logmsg("Short write: %d/%d\n", n, len);
+			logmsg("Short write: %d/%d", n, len);
 		return -1;
 	}
 
@@ -264,7 +280,7 @@ static int send_body(int sock, FILE *fp)
 	}
 
 	if (ferror(fp)) {
-		logmsg("read file: %s\n", strerror(errno));
+		logmsg("read file: %s", strerror(errno));
 		return -1;
 	}
 
@@ -273,9 +289,13 @@ static int send_body(int sock, FILE *fp)
 
 static int smtp_one(const char *fname)
 {
+	char logout[1024];
 	char buffer[1024];
 	short port = 25;
 	int rc = -1;
+
+	*logout = 0;
+	strlcat(logout, fname, sizeof(logout));
 
 	char *server = strstr(smtp_server, "://");
 	if (server) {
@@ -293,19 +313,19 @@ static int smtp_one(const char *fname)
 
 	struct hostent *host = gethostbyname(server);
 	if (!host) {
-		logmsg("Unable to get host %s\n", server);
+		logmsg("Unable to get host %s", server);
 		return -1;
 	}
 
 	FILE *fp = fopen(fname, "r");
 	if (!fp) {
-		logmsg("%s: %s\n", fname, strerror(errno));
+		logmsg("%s: %s", fname, strerror(errno));
 		return -1;
 	}
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
-		logmsg("socket: %s\n", strerror(errno));
+		logmsg("socket: %s", strerror(errno));
 		goto done;
 	}
 
@@ -319,7 +339,7 @@ static int smtp_one(const char *fname)
 	sock_name.sin_port = htons(port);
 
 	if (connect(sock, (struct sockaddr *)&sock_name, sizeof(sock_name))) {
-		logmsg("connect: %s\n", strerror(errno));
+		logmsg("connect: %s", strerror(errno));
 		goto done;
 	}
 
@@ -361,10 +381,14 @@ static int smtp_one(const char *fname)
 	while (fgets(line, sizeof(line), fp) && *line != '\n') {
 		strtok(line, "\r\n");
 		if ((p = strchr(line, '@'))) {
+			strlcat(logout, " ", sizeof(logout));
+			strlcat(logout, line, sizeof(logout));
 			snprintf(buffer, sizeof(buffer), "RCPT TO:<%s>\r\n", line);
 		} else {
 			if (first_time) {
 				first_time = 0;
+				strlcat(logout, " ", sizeof(logout));
+				strlcat(logout, mail_from, sizeof(logout));
 				snprintf(buffer, sizeof(buffer), "RCPT TO:<%s>\r\n", mail_from);
 			} else
 				continue;
@@ -374,7 +398,8 @@ static int smtp_one(const char *fname)
 			++count;
 		else if (n < 0)
 			goto done;
-		// else	ok to fail
+		else
+			strlcat(logout, "(X)", sizeof(logout));
 	}
 
 	send_str(sock, "DATA\r\n", 354);
@@ -382,6 +407,8 @@ static int smtp_one(const char *fname)
 	send_body(sock, fp);
 
 	send_str(sock, "QUIT\r\n", 221);
+
+	logmsg("%s", logout);
 
 	rc = 0; // success
 
@@ -398,7 +425,7 @@ done:
 #endif
 
 #define NEED_VAL if (!val) {					\
-		logmsg("%s needs a value\n", key);		\
+		logmsg("%s needs a value", key);		\
 		continue;								\
 	}
 
@@ -406,7 +433,7 @@ static void read_config(void)
 {
 	FILE *fp = fopen(CONFIG_FILE, "r");
 	if (!fp) {
-		logmsg(CONFIG_FILE ": %s\n", strerror(errno));
+		logmsg(CONFIG_FILE ": %s", strerror(errno));
 		exit(1);
 	}
 
@@ -436,22 +463,22 @@ static void read_config(void)
 		else if (strcmp(key, "rewrite-from") == 0)
 			rewrite_from = 1;
 		else
-			logmsg("Unexpected key %s\n", key);
+			logmsg("Unexpected key %s", key);
 	}
 
 	fclose(fp);
 
 	if (!smtp_server) {
-		logmsg("You must set smtp-server\n");
+		logmsg("You must set smtp-server");
 		exit(1);
 	}
 	// For now let's require mail-from
 	if (!mail_from) {
-		logmsg("You must set mail-from\n");
+		logmsg("You must set mail-from");
 		exit(1);
 	}
 	if (smtp_user && !smtp_passwd) {
-		logmsg("You must set smtp-user AND smtp-password\n");
+		logmsg("You must set smtp-user AND smtp-password");
 		exit(1);
 	}
 }
@@ -491,34 +518,34 @@ int main(int argc, char *argv[])
 	read_config();
 
 	if (gethostname(hostname, sizeof(hostname))) {
-		logmsg("hostname: %s\n", strerror(errno));
+		logmsg("hostname: %s", strerror(errno));
 		exit(1);
 	}
 
 	if (chdir(MAILDIR)) {
-		logmsg(MAILDIR ": %s\n", strerror(errno));
+		logmsg(MAILDIR ": %s", strerror(errno));
 		exit(1);
 	}
 	if (chdir("queue")) {
-		logmsg(MAILDIR "/queue: %s\n", strerror(errno));
+		logmsg(MAILDIR "/queue: %s", strerror(errno));
 		exit(1);
 	}
 
 	int fd = inotify_init();
 	if (fd < 0) {
-		logmsg("inotify_init: %s\n", strerror(errno));
+		logmsg("inotify_init: %s", strerror(errno));
 		exit(1);
 	}
 
 	int watch = inotify_add_watch(fd, ".", IN_CLOSE_WRITE | IN_MOVED_TO);
 	if (watch < 0) {
-		logmsg("inotify_add_watch\n", strerror(errno));
+		logmsg("inotify_add_watch", strerror(errno));
 		exit(1);
 	}
 
 	if (foreground == 0) {
 		if (daemon(1, 0))
-			logmsg("daemon: %s\n", strerror(errno));
+			logmsg("daemon: %s", strerror(errno));
 	}
 
 	struct pollfd ufd = { .fd = fd, .events = POLLIN };
@@ -526,7 +553,7 @@ int main(int argc, char *argv[])
 	while (1) {
 		DIR *dir = opendir(".");
 		if (!dir) {
-			logmsg("opendir");
+			logmsg("opendir: %s", strerror(errno));
 			continue;
 		}
 
