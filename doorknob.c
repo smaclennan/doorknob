@@ -1,4 +1,4 @@
-/* doorknob.c - Dump as a doorknob SMTP forwarder
+/* doorknob.c - Dumb as a doorknob SMTP forwarder
  * Copyright (C) 2018 Sean MacLennan <seanm@seanm.ca>
  *
  * This program is free software; you can redistribute it and/or modify
