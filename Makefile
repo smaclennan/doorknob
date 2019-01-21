@@ -23,7 +23,7 @@ QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
 .c.o:
 	$(QUIET_CC)$(CC) -o $@ -c $(CFLAGS) $<
 
-all: doorknob sendmail mailq mkauth
+all: doorknob sendmail mailq
 
 doorknob: doorknob.c openssl.c base64.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $< $(LIBS)
@@ -32,9 +32,6 @@ sendmail: sendmail.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
 
 mailq: mailq.c
-	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
-
-mkauth: mkauth.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
 
 install: all
