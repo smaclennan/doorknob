@@ -95,6 +95,29 @@ size_t strlcat(char *dst, const char *src, size_t dstsize)
 }
 #endif
 
+static int looking_for_from;
+static size_t read_callback(char *buffer, size_t size, size_t nitems, void *fp)
+{
+	if (looking_for_from) {
+		if (fgets(buffer, size * nitems, fp)) {
+			if (strncmp(buffer, "From:", 5) == 0) {
+				looking_for_from = 0;
+				char *p = strchr(buffer, '<');
+				if (p)
+					sprintf(p + 1, "%s>\n", mail_from);
+				else
+					sprintf(buffer, "From: %s\n", mail_from);
+			} else if (*buffer == '\n' || *buffer == '\r')
+				// end of header - no From
+				looking_for_from = 0;
+			return strlen(buffer);
+		}
+		return 0;
+	}
+
+	return fread(buffer, size, nitems, fp);
+}
+
 #ifdef WANT_CURL
 #include <curl/curl.h>
 
@@ -121,29 +144,6 @@ static void logsmtp(const char *fname, struct curl_slist *to, CURLcode res)
 	}
 
 	logmsg("%s", log);
-}
-
-static int looking_for_from;
-static size_t read_callback(char *buffer, size_t size, size_t nitems, void *fp)
-{
-	if (looking_for_from) {
-		if (fgets(buffer, size * nitems, fp)) {
-			if (strncmp(buffer, "From:", 5) == 0) {
-				looking_for_from = 0;
-				char *p = strchr(buffer, '<');
-				if (p)
-					sprintf(p + 1, "%s>\n", mail_from);
-				else
-					sprintf(buffer, "From: %s\n", mail_from);
-			} else if (*buffer == '\n' || *buffer == '\r')
-				// end of header - no From
-				looking_for_from = 0;
-			return strlen(buffer);
-		}
-		return 0;
-	}
-
-	return fread(buffer, size, nitems, fp);
 }
 
 static int smtp_one(const char *fname)
@@ -277,7 +277,10 @@ static int send_body(int sock, FILE *fp)
 	char buffer[4096];
 	int n;
 
-	while ((n = fread(buffer, 1, sizeof(buffer), fp)) > 0) {
+	looking_for_from = rewrite_from;
+
+	// This could be more efficient for the rewrite_from case
+	while ((n = read_callback(buffer, 1, sizeof(buffer), fp)) > 0) {
 		int wrote = write_socket(sock, buffer, n);
 		if (wrote != n)
 			return -1;
@@ -450,15 +453,9 @@ static void read_config(void)
 			logmsg("starttls currently only in curl");
 			exit(1);
 #endif
-		} else if (strcmp(key, "rewrite-from") == 0) {
-#ifdef WANT_CURL
+		} else if (strcmp(key, "rewrite-from") == 0)
 			rewrite_from = 1;
-#else
-			rewrite_from = 0; // compiler shutup
-			logmsg("rewrite-from currently only in curl");
-			exit(1);
-#endif
-		} else
+		else
 			logmsg("Unexpected key %s", key);
 	}
 
