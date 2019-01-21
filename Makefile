@@ -25,7 +25,7 @@ QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
 
 all: doorknob sendmail mailq mkauth
 
-doorknob: doorknob.c openssl.c
+doorknob: doorknob.c openssl.c base64.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $< $(LIBS)
 
 sendmail: sendmail.c
@@ -48,4 +48,4 @@ install: all
 	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/tmp
 
 clean:
-	$(QUIET_RM)rm -f doorknob sendmail mailq mkauth *.o
+	$(QUIET_RM)rm -f doorknob sendmail mailq *.o

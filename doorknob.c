@@ -34,7 +34,6 @@
 static char *smtp_server;
 static char *smtp_user;
 static char *smtp_passwd;
-static char *smtp_auth;
 static char *mail_from;
 static int starttls;
 static int rewrite_from;
@@ -52,6 +51,8 @@ static int use_ssl;
 static short smtp_port = 25;
 static uint32_t smtp_addr; // ipv4 only
 static char hostname[HOST_NAME_MAX + 1];
+
+#include "base64.c"
 #endif
 
 static void logmsg(const char *fmt, ...)
@@ -235,9 +236,11 @@ static int write_socket(int sock, const void *buf, int count)
 		return write(sock, buf, count);
 }
 
+/* This is global so other functions can parse the reply */
+static char reply[1501];
+
 static int expect_status(int sock, int status)
 {
-	char reply[1501];
 	int n = read_socket(sock, reply, sizeof(reply) - 1);
 	if (n <= 0) {
 		logmsg("read: %s", strerror(errno));
@@ -296,6 +299,34 @@ static int send_body(int sock, FILE *fp)
 	return send_str(sock, "\r\n.\r\n", 250);
 }
 
+#define AUTH_TYPE_PLAIN 1
+#define AUTH_TYPE_LOGIN 2
+
+static int auth_type; // set from ehlo reply
+
+static int send_ehlo(int sock)
+{
+	char buffer[128], *p, *e;
+
+	snprintf(buffer, sizeof(buffer), "EHLO %s\r\n", hostname);
+	if (send_str(sock, buffer, 250))
+		return -1;
+
+	// For starttls this may change so reset
+	auth_type = 0;
+
+	if ((p = strstr(reply, "250-AUTH"))) {
+		if ((e = strchr(p, '\n'))) *e = 0;
+		// Prefer auth plain over auth login
+		if (strstr(p, "PLAIN"))
+			auth_type = AUTH_TYPE_PLAIN;
+		else if (strstr(p, "LOGIN"))
+			auth_type = AUTH_TYPE_LOGIN;
+	}
+
+	return 0;
+}
+
 static int smtp_one(const char *fname)
 {
 	char logout[1024];
@@ -340,8 +371,7 @@ static int smtp_one(const char *fname)
 
 	expect_status(sock, 220);
 
-	snprintf(buffer, sizeof(buffer), "EHLO %s\r\n", hostname);
-	if (send_str(sock, buffer, 250))
+	if (send_ehlo(sock))
 		goto done;
 
 #ifdef WANT_OPENSSL
@@ -354,26 +384,36 @@ static int smtp_one(const char *fname)
 
 		use_ssl = 1;
 
-		snprintf(buffer, sizeof(buffer), "EHLO %s\r\n", hostname);
-		if (send_str(sock, buffer, 250))
+		// We have to send hello again
+		if (send_ehlo(sock))
 			goto done;
 	}
 #endif
 
-	if (smtp_user && smtp_passwd) {
-#if 0
-		/* This is probably more correct */
-		if (send_str(sock, "AUTH PLAIN\r\n", 334))
-			goto done;
+	if (smtp_user) {
+		if (auth_type == AUTH_TYPE_PLAIN) {
+			char authplain[512];
 
-		snprintf(buffer, sizeof(buffer), "%s\r\n", smtp_auth);
-#else
-		/* This saves a message and reply */
-		snprintf(buffer, sizeof(buffer), "AUTH PLAIN %s\r\n", smtp_auth);
-#endif
+			mkauthplain(smtp_user, smtp_passwd, authplain, sizeof(authplain));
+			snprintf(buffer, sizeof(buffer), "AUTH PLAIN %s\r\n", authplain);
+			if (send_str(sock, buffer, 235))
+				goto done;
+		} else if (auth_type == AUTH_TYPE_LOGIN) {
+			char user64[128], passwd64[256];
 
-		if (send_str(sock, buffer, 235))
-			goto done;
+			base64_encode(user64, sizeof(user64) - 2, (uint8_t *)smtp_user, strlen(smtp_user));
+			base64_encode(passwd64, sizeof(passwd64) - 2, (uint8_t *)smtp_passwd, strlen(smtp_passwd));
+			strcat(user64, "\r\n");
+			strcat(passwd64, "\r\n");
+
+			// We assume user then password... we should actually check reply
+			if (send_str(sock, "AUTH LOGIN\r\n", 334))
+				goto done;
+			if (send_str(sock, user64, 334))
+				goto done;
+			if (send_str(sock, passwd64, 235))
+				goto done;
+		}
 	}
 
 	snprintf(buffer, sizeof(buffer), "MAIL FROM:<%s>\r\n", mail_from);
@@ -457,9 +497,6 @@ static void read_config(void)
 		} else if (strcmp(key, "smtp-password") == 0) {
 			NEED_VAL;
 			smtp_passwd = must_strdup(val);
-		} else if (strcmp(key, "smtp-auth") == 0) {
-			NEED_VAL;
-			smtp_auth = must_strdup(val);
 		} else if (strcmp(key, "mail-from") == 0) {
 			NEED_VAL;
 			mail_from = must_strdup(val);

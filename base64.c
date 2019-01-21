@@ -1,12 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <errno.h>
-
 static char alphabet[] = {
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	"abcdefghijklmnopqrstuvwxyz"
@@ -52,18 +43,9 @@ static int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
 	return cnt;
 }
 
-int main(int argc, char *argv[])
+static int mkauthplain(const char *user, const char *passwd, char *plain, int len)
 {   /* user \0 user \0 passwd */
-
-	if (argc < 3) {
-		puts("I need a user and password");
-		exit(1);
-	}
-
-	char *user = argv[1];
-	char *passwd = argv[2];
-
-	char encode[1024], buffer[1024];
+	char encode[1024];
 	int len1 = strlen(user) + 1;
 	int n = strlen(passwd) + len1 + len1;
 
@@ -71,17 +53,8 @@ int main(int argc, char *argv[])
 	memcpy(encode + len1, user, len1);
 	strcpy(encode + len1 + len1, passwd);
 
-	if (base64_encode(buffer, sizeof(buffer), (uint8_t *)encode, n) <= 0) {
-		puts("base64_encode failed");
+	if (base64_encode(plain, len, (uint8_t *)encode, n) <= 0)
 		return 1;
-	}
 
-	puts(buffer);
 	return 0;
 }
-
-/*
- * Local Variables:
- * compile-command: "gcc -O2 -Wall mkauth.c -o mkauth"
- * End:
- */
