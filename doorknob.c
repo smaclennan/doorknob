@@ -36,7 +36,6 @@ static char *smtp_user;
 static char *smtp_passwd;
 static char *smtp_auth;
 static char *mail_from;
-static char hostname[HOST_NAME_MAX + 1];
 static int starttls;
 static int rewrite_from;
 
@@ -49,8 +48,11 @@ static int use_ssl;
 #include "openssl.c"
 #endif
 
+#ifndef WANT_CURL
 static short smtp_port = 25;
 static uint32_t smtp_addr; // ipv4 only
+static char hostname[HOST_NAME_MAX + 1];
+#endif
 
 static void logmsg(const char *fmt, ...)
 {
@@ -342,6 +344,22 @@ static int smtp_one(const char *fname)
 	if (send_str(sock, buffer, 250))
 		goto done;
 
+#ifdef WANT_OPENSSL
+	if (starttls) {
+		if (send_str(sock, "STARTTLS\r\n", 220))
+			goto done;
+
+		if (openssl_open(sock, smtp_server))
+			goto done;
+
+		use_ssl = 1;
+
+		snprintf(buffer, sizeof(buffer), "EHLO %s\r\n", hostname);
+		if (send_str(sock, buffer, 250))
+			goto done;
+	}
+#endif
+
 	if (smtp_user && smtp_passwd) {
 #if 0
 		/* This is probably more correct */
@@ -445,15 +463,9 @@ static void read_config(void)
 		} else if (strcmp(key, "mail-from") == 0) {
 			NEED_VAL;
 			mail_from = must_strdup(val);
-		} else if (strcmp(key, "starttls") == 0) {
-#ifdef WANT_CURL
+		} else if (strcmp(key, "starttls") == 0)
 			starttls = 1;
-#else
-			starttls = 0; // compiler shutup
-			logmsg("starttls currently only in curl");
-			exit(1);
-#endif
-		} else if (strcmp(key, "rewrite-from") == 0)
+		else if (strcmp(key, "rewrite-from") == 0)
 			rewrite_from = 1;
 		else
 			logmsg("Unexpected key %s", key);
