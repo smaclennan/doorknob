@@ -123,12 +123,6 @@ int main(int argc, char *argv[])
 	if (n)
 		goto read_error;
 
-#if 0
-	// It seems every smtp server asks for this... but nobody sends it
-	// and if we do the period is shown in the email.
-	my_write(fd, "\r\n.\r\n", 5);
-#endif
-
 	if (total_len != total_write)
 		goto write_error;
 
