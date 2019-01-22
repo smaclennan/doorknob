@@ -1,0 +1,8 @@
+#!/bin/sh
+
+Q=/var/spool/mail/queue
+
+for f in $Q/*; do
+    echo $f
+    awk '{ if($0=="") exit; print "  ", $0 }' $f
+done
