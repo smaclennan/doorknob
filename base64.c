@@ -1,3 +1,6 @@
+#ifndef WANT_CURL
+#include "doorknob.h"
+
 static char alphabet[] = {
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	"abcdefghijklmnopqrstuvwxyz"
@@ -17,7 +20,7 @@ static void encode_block(char *dst, const uint8_t *src)
 }
 
 /* dst is returned null terminated but the return does not include the null. */
-static int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
+int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
 {
 	int cnt = 0;
 
@@ -43,7 +46,7 @@ static int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
 	return cnt;
 }
 
-static int mkauthplain(const char *user, const char *passwd, char *plain, int len)
+int mkauthplain(const char *user, const char *passwd, char *plain, int len)
 {   /* user \0 user \0 passwd */
 	char encode[1024];
 	int len1 = strlen(user) + 1;
@@ -58,3 +61,5 @@ static int mkauthplain(const char *user, const char *passwd, char *plain, int le
 
 	return 0;
 }
+
+#endif

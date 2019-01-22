@@ -1,4 +1,5 @@
 #ifdef WANT_OPENSSL
+#include "doorknob.h"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>

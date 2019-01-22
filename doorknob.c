@@ -19,9 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <stdarg.h>
-#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
@@ -30,6 +28,8 @@
 #include <poll.h>
 #include <syslog.h>
 #include <sys/inotify.h>
+
+#include "doorknob.h"
 
 static char *smtp_server;
 static char *smtp_user;
@@ -43,16 +43,12 @@ static long debug;
 
 #ifdef WANT_OPENSSL
 static int use_ssl;
-
-#include "openssl.c"
 #endif
 
 #ifndef WANT_CURL
 static short smtp_port = 25;
 static uint32_t smtp_addr; // ipv4 only
 static char hostname[HOST_NAME_MAX + 1];
-
-#include "base64.c"
 #endif
 
 static void logmsg(const char *fmt, ...)
