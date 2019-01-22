@@ -1,6 +1,9 @@
 #include <stdint.h>
 #include <string.h>
 
+/* Exported from doorknob.c */
+void logmsg(const char *fmt, ...);
+
 /* Exported from openssl.c */
 int openssl_open(int sock, const char *host);
 int openssl_read(char *buffer, int len);

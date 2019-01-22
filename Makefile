@@ -13,16 +13,22 @@ MAILDIR ?= /var/spool/mail
 USE_CURL ?= 0
 
 # doorknob non-curl only.
-# Setting this to 0 supports smtp only. Username/passwords will be
+# Setting both to 0 supports smtp only. Username/passwords will be
 # sent in the clear.  Only recommended for local smtp servers.
-USE_OPENSSL ?= 1
+USE_OPENSSL ?= 0
+USE_BEAR ?= 1
 
 #### End of user settable
 
 ifeq ($(USE_CURL),0)
+ifeq ($(USE_BEAR),1)
+CFLAGS += -DWANT_BEAR -DWANT_SSL -I BearSSL/inc
+LIBS += BearSSL/build/libbearssl.a
+else
 ifeq ($(USE_OPENSSL),1)
-CFLAGS += -DWANT_OPENSSL
+CFLAGS += -DWANT_OPENSSL -DWANT_SSL
 LIBS += -lssl -lcrypto
+endif
 endif
 else
 CFLAGS += -DWANT_CURL
@@ -48,7 +54,7 @@ QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
 
 all: doorknob sendmail mailq
 
-doorknob: doorknob.c openssl.c base64.c
+doorknob: doorknob.c openssl.c base64.c bear.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
 
 sendmail: sendmail.c

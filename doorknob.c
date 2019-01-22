@@ -41,7 +41,7 @@ static int rewrite_from;
 static int foreground;
 static long debug;
 
-#ifdef WANT_OPENSSL
+#ifdef WANT_SSL
 static int use_ssl;
 #endif
 
@@ -51,7 +51,7 @@ static uint32_t smtp_addr; // ipv4 only
 static char hostname[HOST_NAME_MAX + 1];
 #endif
 
-static void logmsg(const char *fmt, ...)
+void logmsg(const char *fmt, ...)
 {
 	va_list ap;
 
@@ -214,7 +214,7 @@ done:
 
 static int read_socket(int sock, void *buf, int count)
 {
-#ifdef WANT_OPENSSL
+#ifdef WANT_SSL
 	if (use_ssl)
 		return openssl_read(buf, count);
 	else
@@ -224,7 +224,7 @@ static int read_socket(int sock, void *buf, int count)
 
 static int write_socket(int sock, const void *buf, int count)
 {
-#ifdef WANT_OPENSSL
+#ifdef WANT_SSL
 	if (use_ssl)
 		return openssl_write(buf, count);
 	else
@@ -359,7 +359,7 @@ static int smtp_one(const char *fname)
 		goto done;
 	}
 
-#ifdef WANT_OPENSSL
+#ifdef WANT_SSL
 	if (use_ssl)
 		if (openssl_open(sock, smtp_server))
 			goto done;
@@ -370,7 +370,7 @@ static int smtp_one(const char *fname)
 	if (send_ehlo(sock))
 		goto done;
 
-#ifdef WANT_OPENSSL
+#ifdef WANT_SSL
 	if (starttls) {
 		if (send_str(sock, "STARTTLS\r\n", 220))
 			goto done;
@@ -455,12 +455,9 @@ static int smtp_one(const char *fname)
 
 done:
 	fclose(fp);
-#ifdef WANT_OPENSSL
     openssl_close();
-#endif
 	if (sock != -1)
 		close(sock);
-
 	return rc;
 }
 #endif
@@ -524,7 +521,7 @@ static void read_config(void)
 	char *server = strstr(smtp_server, "://");
 	if (server) {
 		server += 3;
-#ifdef WANT_OPENSSL
+#ifdef WANT_SSL
 		if (strncmp(smtp_server, "smtps", 5) == 0) {
 			smtp_port = 465;
 			use_ssl = 1;

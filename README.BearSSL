@@ -1,0 +1,12 @@
+From the BearSSL website: "It is now considered beta-quality software".
+
+So use at your own risk. But it is much much much smaller than OpenSSL.
+
+To compile against BearSSL:
+
+git clone https://www.bearssl.org/git/BearSSL
+cd BearSSL
+make
+cd ..
+
+make
