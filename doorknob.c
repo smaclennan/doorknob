@@ -40,6 +40,7 @@ static int rewrite_from;
 
 static int foreground;
 static long debug;
+static int use_stdout;
 
 #ifdef WANT_SSL
 static int use_ssl;
@@ -56,7 +57,7 @@ void logmsg(const char *fmt, ...)
 	va_list ap;
 
 	va_start(ap, fmt);
-	if (debug) {
+	if (use_stdout) {
 		vprintf(fmt, ap);
 		putchar('\n');
 	} else
@@ -556,9 +557,10 @@ static int read_event(int fd)
 
 static void usage(void)
 {
-	puts("usage: doorknob [-FD]\n"
-		 "where: -F keeps doorknob in foreground\n"
-		 "       -D turns on debugging (enables foreground)");
+	puts("usage: doorknob [-fds]\n"
+		 "where: -f keeps doorknob in foreground\n"
+		 "       -d turns on debugging (enables foreground and stdout\n"
+		 "       -s use stdout rather than syslog");
 	exit(1);
 }
 
@@ -568,11 +570,14 @@ int main(int argc, char *argv[])
 
 	openlog("doorknob", 0, LOG_MAIL);
 
-	while ((c = getopt(argc, argv, "hFD")) != EOF)
+	while ((c = getopt(argc, argv, "DFdfhds")) != EOF)
 		switch (c) {
 		case 'h': usage();
-		case 'D': debug = 1; // fall thru
-		case 'F': foreground = 1; break;
+		case 'D': // for backwards compatibility
+		case 'd': debug = 1; foreground = 1; use_stdout = 1; break;
+		case 'F': // for backwards compatibility
+		case 'f': foreground = 1; break;
+		case 's': use_stdout = 1; break;
 		default: puts("Sorry!"); exit(1);
 		}
 
