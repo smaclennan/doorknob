@@ -585,9 +585,10 @@ static int read_event(int fd)
 static void usage(void)
 {
 	puts("usage: doorknob [-fds]\n"
-		 "where: -f keeps doorknob in foreground\n"
-		 "       -d turns on debugging (enables foreground and stdout\n"
-		 "       -s use stdout rather than syslog");
+		 "where: -d turns on debugging (enables foreground and stderr)\n"
+		 "       -f keeps doorknob in foreground\n"
+		 "       -h this help message\n"
+		 "       -s use stderr rather than syslog");
 	exit(1);
 }
 
