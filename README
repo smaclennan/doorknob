@@ -83,11 +83,11 @@ comes after the empty line.
 
 A note about the raw to address. Doorknob assumes that the real SMTP
 server does not know who root, lisa, or fred are on your
-machine. To addressii that have an @ in them are sent through
+machine. To addresses that have an @ in them are sent through
 unmolested. But the first occurrence of an address without an @ is
 replaced with the mail-from address. All other occurrences are
 silently dropped. The To: field in the header should still contain the
-correct addressii.
+correct addresses.
 
 
 Ubuntu Warning
