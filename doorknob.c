@@ -27,6 +27,7 @@
 #include <dirent.h>
 #include <poll.h>
 #include <syslog.h>
+#include <sys/stat.h>
 #include <sys/inotify.h>
 
 #include "doorknob.h"
@@ -126,6 +127,24 @@ static size_t read_callback(char *buffer, size_t size, size_t nitems, void *fp)
 	return fread(buffer, size, nitems, fp);
 }
 
+static int open_spool_file(const char *fname, FILE **fp)
+{
+	struct stat sbuf;
+	if (stat(fname, &sbuf))
+		return -1;
+
+	if (!S_ISREG(sbuf.st_mode)) {
+		logmsg("%s: Not a regular file", fname);
+		return 1; // try to delete it
+	}
+
+	*fp = fopen(fname, "r");
+	if (!*fp)
+		return -1;
+
+	return 0;
+}
+
 #ifdef WANT_CURL
 #include <curl/curl.h>
 
@@ -156,11 +175,11 @@ static void logsmtp(const char *fname, struct curl_slist *to, CURLcode res)
 
 static int smtp_one(const char *fname)
 {
-	FILE *fp = fopen(fname, "r");
-	if (!fp) {
-		perror(fname);
-		return 0; // Try again
-	}
+	FILE *fp;
+
+	int rc = open_spool_file(fname, &fp);
+	if (rc)
+		return rc;
 
 	CURLcode res = 0;
 	struct curl_slist *recipients = NULL;
@@ -336,17 +355,17 @@ static int smtp_one(const char *fname)
 {
 	char logout[1024];
 	char buffer[1024];
-	int rc = -1;
+	FILE *fp;
+	int rc;
 
 	*logout = 0;
 	strlcat(logout, fname, sizeof(logout));
 
+	rc = open_spool_file(fname, &fp);
+	if (rc)
+		return rc;
 
-	FILE *fp = fopen(fname, "r");
-	if (!fp) {
-		logmsg("%s: %s", fname, strerror(errno));
-		return -1;
-	}
+	rc = -1; // reset to failed
 
 	int sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock == -1) {
@@ -625,8 +644,9 @@ int main(int argc, char *argv[])
 		struct dirent *ent;
 		while ((ent = readdir(dir)))
 			if (*ent->d_name != '.')
-				if (smtp_one(ent->d_name) == 0)
-					unlink(ent->d_name);
+				if (smtp_one(ent->d_name) >= 0)
+					if (unlink(ent->d_name))
+						logmsg("unlink %s: %s", strerror(errno));
 
 		closedir(dir);
 
