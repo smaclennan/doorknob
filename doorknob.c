@@ -40,7 +40,7 @@ static int rewrite_from;
 
 static int foreground;
 static long debug;
-static int use_stdout;
+static int use_stderr;
 
 #ifdef WANT_SSL
 static int use_ssl;
@@ -52,17 +52,25 @@ static uint32_t smtp_addr; // ipv4 only
 static char hostname[HOST_NAME_MAX + 1];
 #endif
 
+static inline int write_string(char *str)
+{
+	strcat(str, "\n");
+	return write(2, str, strlen(str));
+}
+
 void logmsg(const char *fmt, ...)
 {
 	va_list ap;
+	char msg[128];
 
 	va_start(ap, fmt);
-	if (use_stdout) {
-		vprintf(fmt, ap);
-		putchar('\n');
-	} else
-		vsyslog(LOG_INFO, fmt, ap);
+	vsnprintf(msg, sizeof(msg) - 1, fmt, ap);
 	va_end(ap);
+
+	if (use_stderr)
+		write_string(msg);
+	else
+		syslog(LOG_INFO, "%s", msg);
 }
 
 static char *must_strdup(const char *str)
@@ -570,14 +578,14 @@ int main(int argc, char *argv[])
 
 	openlog("doorknob", 0, LOG_MAIL);
 
-	while ((c = getopt(argc, argv, "DFdfhds")) != EOF)
+	while ((c = getopt(argc, argv, "DFdfhs")) != EOF)
 		switch (c) {
-		case 'h': usage();
 		case 'D': // for backwards compatibility
-		case 'd': debug = 1; foreground = 1; use_stdout = 1; break;
+		case 'd': debug = 1; foreground = 1; use_stderr = 1; break;
 		case 'F': // for backwards compatibility
 		case 'f': foreground = 1; break;
-		case 's': use_stdout = 1; break;
+		case 'h': usage();
+		case 's': use_stderr = 1; break;
 		default: puts("Sorry!"); exit(1);
 		}
 
