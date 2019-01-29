@@ -27,6 +27,7 @@
 #include <dirent.h>
 #include <poll.h>
 #include <syslog.h>
+#include <pwd.h>
 #include <sys/stat.h>
 #include <sys/inotify.h>
 
@@ -362,8 +363,10 @@ static int smtp_one(const char *fname)
 	strlcat(logout, fname, sizeof(logout));
 
 	rc = open_spool_file(fname, &fp);
-	if (rc)
+	if (rc) {
+		logmsg("open %s: %s", fname, strerror(errno));
 		return rc;
+	}
 
 	rc = -1; // reset to failed
 
@@ -597,12 +600,13 @@ static void usage(void)
 
 int main(int argc, char *argv[])
 {
-	int c;
+	int c, no_change = 0;
 
 	openlog("doorknob", 0, LOG_MAIL);
 
-	while ((c = getopt(argc, argv, "DFdfhs")) != EOF)
+	while ((c = getopt(argc, argv, "CDFdfhs")) != EOF)
 		switch (c) {
+		case 'C': no_change = 1; break;
 		case 'D': // for backwards compatibility
 		case 'd': debug = 1; foreground = 1; use_stderr = 1; break;
 		case 'F': // for backwards compatibility
@@ -615,7 +619,13 @@ int main(int argc, char *argv[])
 	read_config();
 
 	if (chdir(MAILDIR "/queue")) {
-		logmsg(MAILDIR ": %s", strerror(errno));
+		logmsg(MAILDIR "/queue: %s", strerror(errno));
+		exit(1);
+	}
+
+	DIR *dir = opendir(".");
+	if (!dir) {
+		logmsg("opendir: %s", strerror(errno));
 		exit(1);
 	}
 
@@ -627,8 +637,27 @@ int main(int argc, char *argv[])
 
 	int watch = inotify_add_watch(fd, ".", IN_CLOSE_WRITE | IN_MOVED_TO);
 	if (watch < 0) {
-		logmsg("inotify_add_watch", strerror(errno));
+		logmsg("inotify_add_watch: %s", strerror(errno));
 		exit(1);
+	}
+
+	/* Do this after inotify setup */
+	if (no_change == 0) {
+		struct passwd *pw = getpwnam("doorknob");
+		if (!pw) {
+			logmsg("doorknob user does not exist");
+			exit(1);
+		}
+
+		if (setgid(pw->pw_gid)) {
+			logmsg("setgid %d: %s", pw->pw_gid, strerror(errno));
+			exit(1);
+		}
+
+		if (setuid(pw->pw_uid)) {
+			logmsg("setuid %d: %s", pw->pw_uid, strerror(errno));
+			exit(1);
+		}
 	}
 
 	if (foreground == 0) {
@@ -639,22 +668,16 @@ int main(int argc, char *argv[])
 	struct pollfd ufd = { .fd = fd, .events = POLLIN };
 
 	while (1) {
-		DIR *dir = opendir(".");
-		if (!dir) {
-			logmsg("opendir: %s", strerror(errno));
-			continue;
-		}
-
 		struct dirent *ent;
+
+		rewinddir(dir);
 		while ((ent = readdir(dir)))
 			if (*ent->d_name != '.')
 				if (smtp_one(ent->d_name) >= 0)
 					if (unlink(ent->d_name))
 						logmsg("unlink %s: %s", strerror(errno));
 
-		closedir(dir);
-
-		// Timeout every hour
+		/* Timeout every hour */
 		if (poll(&ufd, 1, 3600000) == 1)
 			read_event(fd);
 	}

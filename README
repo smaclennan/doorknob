@@ -40,6 +40,31 @@ lets them do that job and just does as little as possible. Maybe
 doorknob isn't as dumb as he looks.
 
 
+How to secure doorknob
+----------------------
+
+This assumes MAILDIR is defined as /var/spool/doorknob.
+
+# Fixup the queues
+chown mail.mail /var/spool/doorknob
+chmod 750 /var/spool/doorknob
+chown mail.mail /var/spool/doorknob/queue /var/spool/doorknob/tmp
+chmod 757 /var/spool/doorknob/queue
+chmod 700 /var/spool/doorknob/tmp
+
+# Fixup sendmail
+chown mail.mail /usr/sbin/sendmail
+chmod +s /usr/sbin/sendmail
+
+# Fixup mailq
+chown mail.mail /usr/sbin/mailq
+chmod g+s /usr/sbin/mailq
+
+# Add doorknob user+group
+groupadd -g 205 doorknob
+useradd -u 205 -g 205 -c doorknob -d /var/spool/mail/queue -s /bin/false -r doorknob
+
+
 Debug (-D) Mode
 ---------------
 

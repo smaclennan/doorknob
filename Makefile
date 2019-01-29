@@ -6,8 +6,8 @@
 CONFIG_FILE ?= /etc/doorknob.conf
 
 # Used by everybody
-# MAIL_DIR must contian queue and tmp
-MAILDIR ?= /var/spool/mail
+# MAIL_DIR must contain queue and tmp
+MAILDIR ?= /var/spool/doorknob
 
 # doorknob only
 USE_CURL ?= 0
@@ -52,7 +52,7 @@ QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
 .c.o:
 	$(QUIET_CC)$(CC) -o $@ -c $(CFLAGS) $<
 
-all: doorknob sendmail
+all: doorknob sendmail mailq
 
 doorknob: doorknob.c openssl.c base64.c bear.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
@@ -60,15 +60,19 @@ doorknob: doorknob.c openssl.c base64.c bear.c
 sendmail: sendmail.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
 
+mailq: mailq.c
+	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
+
 install: all
-	install -D -g mail doorknob $(DESTDIR)/usr/sbin/doorknob
-	install -D -g mail sendmail $(DESTDIR)/usr/sbin/sendmail
+	install -D doorknob $(DESTDIR)/usr/sbin/doorknob
+	install -D -u mail -g mail sendmail $(DESTDIR)/usr/sbin/sendmail
 	rm -f $(DESTDIR)/usr/bin/sendmail
 	install -d $(DESTDIR)/usr/bin
 	ln -s /usr/sbin/sendmail $(DESTDIR)/usr/bin/sendmail
-	install -D -g mail mailq $(DESTDIR)/usr/sbin/mailq
-	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/queue
-	install -d -m 777 -g mail $(DESTDIR)/var/spool/mail/tmp
+	install -D --u root -g mail mailq $(DESTDIR)/usr/sbin/mailq
+	install -d -m 777 -u mail -g mail $(DESTDIR)$(MAILDIR)
+	install -d -m 777 -u mail -g mail $(DESTDIR)$(MAILDIR)/queue
+	install -d -m 777 -u mail -g mail $(DESTDIR)$(MAILDIR)/tmp
 
 clean:
-	$(QUIET_RM)rm -f doorknob sendmail *.o
+	$(QUIET_RM)rm -f doorknob sendmail mailq *.o
