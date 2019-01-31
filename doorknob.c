@@ -388,9 +388,12 @@ static int smtp_one(const char *fname)
 	}
 
 #ifdef WANT_SSL
-	if (use_ssl)
-		if (openssl_open(sock, smtp_server))
+	if (use_ssl) {
+		if (starttls)
+			use_ssl = 0; /* reset for first hello */
+		else if (openssl_open(sock, smtp_server))
 			goto done;
+	}
 #endif
 
 	expect_status(sock, 220);
