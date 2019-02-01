@@ -1,5 +1,4 @@
 #include "doorknob.h"
-#include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -7,7 +6,7 @@ char *must_strdup(const char *str)
 {
 	char *new = strdup(str);
 	if (!new) {
-		fputs("Out of memory!\n", stderr);
+		logmsg("Out of memory!");
 		exit(1);
 	}
 	return new;
