@@ -75,36 +75,6 @@ void logmsg(const char *fmt, ...)
 		syslog(LOG_INFO, "%s", msg);
 }
 
-static char *must_strdup(const char *str)
-{
-	char *new = strdup(str);
-	if (!new) {
-		fputs("Out of memory!\n", stderr);
-		exit(1);
-	}
-	return new;
-}
-
-#ifdef __linux__
-size_t strlcat(char *dst, const char *src, size_t dstsize)
-{
-	int dstlen = strlen(dst);
-	int srclen = strlen(src);
-	int left   = dstsize - dstlen;
-
-	if (left > 0) {
-		if (left > srclen)
-			strcpy(dst + dstlen, src);
-		else {
-			strncpy(dst + dstlen, src, left - 1);
-			dst[dstsize - 1] = 0;
-		}
-	}
-
-	return dstlen + srclen;
-}
-#endif
-
 static int looking_for_from;
 static size_t read_callback(char *buffer, size_t size, size_t nitems, void *fp)
 {
@@ -333,7 +303,7 @@ static int send_ehlo(int sock)
 {
 	char buffer[128], *p, *e;
 
-	snprintf(buffer, sizeof(buffer), "EHLO %s\r\n", hostname);
+	strconcat(buffer, sizeof(buffer), "EHLO ", hostname, "\r\n", NULL);
 	if (send_str(sock, buffer, 250))
 		return -1;
 
@@ -359,8 +329,7 @@ static int smtp_one(const char *fname)
 	FILE *fp;
 	int rc;
 
-	*logout = 0;
-	strlcat(logout, fname, sizeof(logout));
+	strlcpy(logout, fname, sizeof(logout));
 
 	rc = open_spool_file(fname, &fp);
 	if (rc) {
@@ -425,7 +394,7 @@ static int smtp_one(const char *fname)
 			char authplain[512];
 
 			mkauthplain(smtp_user, smtp_passwd, authplain, sizeof(authplain));
-			snprintf(buffer, sizeof(buffer), "AUTH PLAIN %s\r\n", authplain);
+			strconcat(buffer, sizeof(buffer), "AUTH PLAIN ", authplain, "\r\n", NULL);
 			if (send_str(sock, buffer, 235))
 				goto done;
 		} else if (auth_type == AUTH_TYPE_LOGIN) {
@@ -446,7 +415,7 @@ static int smtp_one(const char *fname)
 		}
 	}
 
-	snprintf(buffer, sizeof(buffer), "MAIL FROM:<%s>\r\n", mail_from);
+	strconcat(buffer, sizeof(buffer), "MAIL FROM:<", mail_from, ">\r\n", NULL);
 	if (send_str(sock, buffer, 250))
 		goto done;
 
@@ -458,13 +427,13 @@ static int smtp_one(const char *fname)
 		if ((p = strchr(line, '@'))) {
 			strlcat(logout, " ", sizeof(logout));
 			strlcat(logout, line, sizeof(logout));
-			snprintf(buffer, sizeof(buffer), "RCPT TO:<%s>\r\n", line);
+			strconcat(buffer, sizeof(buffer), "RCPT TO:<", line, ">\r\n", NULL);
 		} else {
 			if (first_time) {
 				first_time = 0;
 				strlcat(logout, " ", sizeof(logout));
 				strlcat(logout, mail_from, sizeof(logout));
-				snprintf(buffer, sizeof(buffer), "RCPT TO:<%s>\r\n", mail_from);
+				strconcat(buffer, sizeof(buffer), "RCPT TO:<", mail_from, ">\r\n", NULL);
 			} else
 				continue;
 		}

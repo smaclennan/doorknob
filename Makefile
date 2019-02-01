@@ -54,7 +54,7 @@ QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
 
 all: doorknob sendmail mailq
 
-doorknob: doorknob.c openssl.c base64.c bear.c
+doorknob: doorknob.c openssl.c base64.c bear.c utils.c
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
 
 sendmail: sendmail.c
