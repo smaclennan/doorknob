@@ -43,16 +43,11 @@ static int rewrite_from;
 static int foreground;
 static long debug;
 static int use_stderr;
-
-#ifdef WANT_SSL
 static int use_ssl;
-#endif
 
-#ifndef WANT_CURL
 static short smtp_port = 25;
 static uint32_t smtp_addr; // ipv4 only
 static char hostname[HOST_NAME_MAX + 1];
-#endif
 
 static inline int write_string(char *str)
 {
@@ -148,6 +143,11 @@ static int smtp_one(const char *fname)
 {
 	FILE *fp;
 
+	(void)use_ssl;
+	(void)smtp_port;
+	(void)smtp_addr;
+	(void)hostname;
+
 	int rc = open_spool_file(fname, &fp);
 	if (rc)
 		return rc;
@@ -211,23 +211,26 @@ done:
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#ifndef WANT_SSL
+#define openssl_open(s, h) -1
+#define openssl_read(b, c) -1
+#define openssl_write(b, c) -1
+#define openssl_close()
+#endif
+
 static int read_socket(int sock, void *buf, int count)
 {
-#ifdef WANT_SSL
 	if (use_ssl)
 		return openssl_read(buf, count);
 	else
-#endif
 		return read(sock, buf, count);
 }
 
 static int write_socket(int sock, const void *buf, int count)
 {
-#ifdef WANT_SSL
 	if (use_ssl)
 		return openssl_write(buf, count);
 	else
-#endif
 		return write(sock, buf, count);
 }
 
@@ -359,21 +362,18 @@ static int smtp_one(const char *fname)
 		goto done;
 	}
 
-#ifdef WANT_SSL
 	if (use_ssl) {
 		if (starttls)
 			use_ssl = 0; /* reset for first hello */
 		else if (openssl_open(sock, smtp_server))
 			goto done;
 	}
-#endif
 
 	expect_status(sock, 220);
 
 	if (send_ehlo(sock))
 		goto done;
 
-#ifdef WANT_SSL
 	if (starttls) {
 		if (send_str(sock, "STARTTLS\r\n", 220))
 			goto done;
@@ -387,7 +387,6 @@ static int smtp_one(const char *fname)
 		if (send_ehlo(sock))
 			goto done;
 	}
-#endif
 
 	if (smtp_user) {
 		if (auth_type == AUTH_TYPE_PLAIN) {
@@ -500,9 +499,14 @@ static void read_config(void)
 		} else if (strcmp(key, "mail-from") == 0) {
 			NEED_VAL;
 			mail_from = must_strdup(val);
-		} else if (strcmp(key, "starttls") == 0)
+		} else if (strcmp(key, "starttls") == 0) {
+#if defined(WANT_SSL) || defined(WANT_CURL)
 			starttls = 1;
-		else if (strcmp(key, "rewrite-from") == 0)
+#else
+			logmsg("starttls not supported");
+			exit(1);
+#endif
+		} else if (strcmp(key, "rewrite-from") == 0)
 			rewrite_from = 1;
 		else
 			logmsg("Unexpected key %s", key);
@@ -528,13 +532,15 @@ static void read_config(void)
 	char *server = strstr(smtp_server, "://");
 	if (server) {
 		server += 3;
-#ifdef WANT_SSL
 		if (strncmp(smtp_server, "smtps", 5) == 0) {
+#ifndef WANT_SSL
+			logmsg("smtps not supported");
+			exit(1);
+#endif
 			smtp_port = 465;
 			use_ssl = 1;
 			if (debug) puts("Using SSL");
 		}
-#endif
 		smtp_server = server;
 	}
 
