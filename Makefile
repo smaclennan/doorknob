@@ -16,10 +16,11 @@ MAILDIR ?= /var/spool/doorknob
 # Another un-privileged user for the mail queues
 MAILUSER ?= mail
 
-# Setting to 0 supports smtp only. Username/passwords will be
-# sent in the clear.  Only recommended for local smtp servers.
+# Doorknob only. Setting to 0 supports smtp only. Username/passwords
+# will be sent in the clear. Only recommended for local smtp servers.
 USE_BEAR ?= 1
 
+# Tweak this if you have BearSSL installed somewhere else.
 ifeq ($(USE_BEAR),1)
 CFLAGS += -DWANT_SSL -I BearSSL/inc
 LIBS += BearSSL/build/libbearssl.a
