@@ -472,14 +472,18 @@ done:
 
 static void read_config(void)
 {
-	FILE *fp = fopen(CONFIG_FILE, "r");
+	FILE *fp = fopen(CONFIGFILE, "r");
 	if (!fp) {
-		logmsg(CONFIG_FILE ": %s", strerror(errno));
+		logmsg(CONFIGFILE ": %s", strerror(errno));
 		exit(1);
 	}
 
 	char line[128];
 	while (fgets(line, sizeof(line), fp)) {
+		if (!strrchr(line, '\n')) {
+			logmsg("Config file line to long");
+			exit(1);
+		}
 		if (*line == '#') continue;
 		char *key = strtok(line, " \t\r\n");
 		char *val = strtok(NULL, "\r\n");
@@ -585,8 +589,6 @@ int main(int argc, char *argv[])
 		default: puts("Sorry!"); exit(1);
 		}
 
-	read_config();
-
 	if (chdir(MAILDIR "/queue")) {
 		logmsg(MAILDIR "/queue: %s", strerror(errno));
 		exit(1);
@@ -612,9 +614,9 @@ int main(int argc, char *argv[])
 
 	/* Do this after inotify setup */
 	if (no_change == 0) {
-		struct passwd *pw = getpwnam("doorknob");
+		struct passwd *pw = getpwnam(DOORKNOBUSER);
 		if (!pw) {
-			logmsg("doorknob user does not exist");
+			logmsg(DOORKNOBUSER " user does not exist");
 			exit(1);
 		}
 
@@ -628,6 +630,8 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 	}
+
+	read_config();
 
 	if (foreground == 0) {
 		if (daemon(1, 0))

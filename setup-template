@@ -1,0 +1,47 @@
+#!/bin/sh -e
+
+## This attempts to give a sane and secure setup. Please check the
+## settings carefully since this must be run as root.
+##
+## This file should have picked up the settings from the Makefile. This
+## means it will be consistent with the installed programs. If you
+## change the settings it should be safe to run this script again.
+##
+## If you change the DOORKNOBUSER, you will need to remove the old user.
+##
+## The uid and gid for the DOORKNOBUSER can be changed.
+
+if ! grep -q `"^'DOORKNOBUSER`:"' /etc/passwd; then
+    # Add doorknob user+group
+    groupadd -g 205 DOORKNOBUSER
+    useradd -u 205 -g 205 -c doorknob -d MAILDIR`/queue' -s /bin/false -r DOORKNOBUSER
+fi
+
+# Fixup doorknob
+chown DOORKNOBUSER`.'DOORKNOBUSER /usr/sbin/doorknob
+chmod 755 /usr/sbin/doorknob
+
+# Fixup sendmail
+chown MAILUSER.MAILUSER /usr/sbin/sendmail
+chmod +s /usr/sbin/sendmail
+
+# Fixup mailq
+chown MAILUSER`.'MAILUSER /usr/sbin/mailq
+chmod +s /usr/sbin/mailq
+
+# Fixup the queues
+chown MAILUSER`.'MAILUSER MAILDIR
+chown MAILUSER`.'MAILUSER MAILDIR`/queue'
+chown MAILUSER`.'MAILUSER MAILDIR`/tmp'
+chmod 750 MAILDIR
+chmod 777 MAILDIR`/queue'
+chmod 700 MAILDIR`/tmp'
+
+# Fixup the config file
+if [ ! -f CONFIGFILE ]; then
+   cp doorknob.conf CONFIGFILE
+   echo "The config file CONFIGFILE will not work as is"
+fi
+
+chmod 400 CONFIGFILE
+chown DOORKNOBUSER`.'DOORKNOBUSER CONFIGFILE

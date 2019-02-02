@@ -5,17 +5,19 @@
 #include <errno.h>
 #include <dirent.h>
 
+#define QDIR MAILDIR"/queue"
+
 
 int main(int argc, char *argv[])
 {
-	if (chdir(MAILDIR "/queue")) {
-		fprintf(stderr, MAILDIR "/queue: %s\n", strerror(errno));
+	if (chdir(QDIR)) {
+		perror("chdir " QDIR);
 		exit(1);
 	}
 
 	DIR *dir = opendir(".");
 	if (!dir) {
-		fprintf(stderr, "opendir: %s\n", strerror(errno));
+		perror("opendir " QDIR);
 		exit(1);
 	}
 
@@ -24,7 +26,10 @@ int main(int argc, char *argv[])
 		if (*ent->d_name != '.')
 			puts(ent->d_name);
 
-	closedir(dir);
+	if (closedir(dir)) {
+		perror("closedir " QDIR);
+		exit(1);
+	}
 
 	return 0;
 }

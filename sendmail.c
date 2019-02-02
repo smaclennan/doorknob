@@ -45,7 +45,9 @@ static int create_tmp_file(void)
 	snprintf(tmp_path, sizeof(tmp_path), "tmp/%s", tmp_file);
 	snprintf(real_path, sizeof(real_path), "queue/%s", tmp_file);
 
-	int fd = creat(tmp_path, 0644);
+	/* Yes, it must be world writable for doorknob. This file is
+	 * protected by the directory permissions. */
+	int fd = creat(tmp_path, 0666);
 	if (fd < 0) {
 		perror(tmp_path);
 		exit(1);
@@ -143,11 +145,11 @@ write_error:
 	fprintf(stderr, "%s: write error\n", tmp_path);
 	close(fd);
 	unlink(tmp_path);
-	return -1;
+	return 1;
 
 read_error:
 	fprintf(stderr, "%s: read error\n", tmp_path);
 	close(fd);
 	unlink(tmp_path);
-	return -1;
+	return 1;
 }

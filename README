@@ -1,10 +1,9 @@
-Doorknob is a SMTP (mail) forwarder that is dumb as a doorknob. All
-of the smarts are in libcurl (https://curl.haxx.se/libcurl/).
+Doorknob is a SMTP (mail) forwarder that is dumb as a doorknob.
 
 Doorknob is meant to be used on machines where you want to forward all
-of the mail to one mail account. Example use cases are laptops where
-you want to forward all your mail to say gmail no matter who it is
-really for. Or routers. Or work machines with overly strict email
+of the mail to one remote mail account. Example use cases are laptops
+where you want to forward all your mail to say gmail no matter who it
+is really for. Or routers. Or work machines with overly strict email
 policies :(
 
 Doorknob has one simple config file and comes with a sample file that
@@ -15,11 +14,41 @@ policies.
 
 If the recipient has an @ in the email (fred@gmail.com) then the
 address goes through unchanged. However if the recipient is local
-(root) then it is send to the One True User. This means all your cron
+(root) then it is sent to the One True User. This means all your cron
 output gets sent to the right place.
 
 Hint: It is recommended that HOSTNAME be set with the fully qualified
       host name.
+
+
+How to install doorknob
+-----------------------
+
+Doorknob tries to be distro agnostic. This means you have to work a
+bit harder to install it.
+
+Check the user settable portion at the top of the Makefile and make
+sure the settings are correct. The defaults should work. I recommend
+using BearSSL. See README.BearSSL.
+
+make && sudo make install
+
+A file called setup.sh should have been created. It should have all
+the defaults from the Makefile so that it is consistent with the
+executables. Take a good look at it since it must be run as root. When
+you are happy with it run:
+
+sudo sh ./setup.sh
+
+You now must edit /etc/doorknob.conf (or whatever you set CONFIGFILE
+to). This file will most likely contain your username and password, so
+keep the permissions tight.
+
+You can test doorknob in the foreground using `sudo doorknob -d'. Send
+a couple of mails and make sure there are no errors.
+
+You can now use your favorite init script or supervisor system to
+start doorknob. A sample rc.doorknob is included.
 
 
 rc.doorknob
@@ -35,46 +64,25 @@ Validation and Security
 
 Doorknob is not very bright. A basic assumption is that you are
 sending to a commercial grade mail server which will already be doing
-a lot of (too much?) checking and filtering of the email. So doorknob
-lets them do that job and just does as little as possible. Maybe
-doorknob isn't as dumb as he looks.
+a lot of (too much?) checking and filtering of the email. Or you are
+on a local network where security is not really a consideration. So
+doorknob lets them do that job and just does as little as
+possible. Maybe doorknob isn't as dumb as he looks.
 
+A note about SSL. Doorknob makes no attempt to validate against the
+server. This makes life much easier since we don't need to deal with
+certificates. But it does mean it is less secure.
 
-How to secure doorknob
-----------------------
+So why use SSL? If you need a username/password to connect to the smtp
+server you do not want to send the password in the clear. The SSL
+solves this problem.
 
-This assumes MAILDIR is defined as /var/spool/doorknob.
+If you don't need a username/password or are connecting to a local
+smtp server on a local network where you trust EVERYBODY on the
+network, then you do not need SSL.
 
-# Fixup the queues
-chown mail.mail /var/spool/doorknob
-chmod 750 /var/spool/doorknob
-chown mail.mail /var/spool/doorknob/queue /var/spool/doorknob/tmp
-chmod 757 /var/spool/doorknob/queue
-chmod 700 /var/spool/doorknob/tmp
-
-# Fixup sendmail
-chown mail.mail /usr/sbin/sendmail
-chmod +s /usr/sbin/sendmail
-
-# Fixup mailq
-chown mail.mail /usr/sbin/mailq
-chmod g+s /usr/sbin/mailq
-
-# Add doorknob user+group
-groupadd -g 205 doorknob
-useradd -u 205 -g 205 -c doorknob -d /var/spool/mail/queue -s /bin/false -r doorknob
-
-
-Debug (-D) Mode
----------------
-
-Debug (-D) mode is very useful when first debugging the connection to
-the "real" SMTP server. It enables the verbose option to libcurl to
-print a lot more information about the connection and what is
-happening.
-
-It also enables foreground mode. All output goes to stdout or stderr
-except the one line logging message.
+Currently doorknob supports BearSSL, OpenSSL, and Curl in increasing
+order of size.
 
 
 How It Works

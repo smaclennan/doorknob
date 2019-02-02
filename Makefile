@@ -1,13 +1,20 @@
-.PHONY: all clean
+.PHONY: all clean setup install devinstall
 
 #### User settable
 
 # This is needed by doorknob only
-CONFIG_FILE ?= /etc/doorknob.conf
+CONFIGFILE ?= /etc/doorknob.conf
+
+# Username for doorknob only. This should be a unique user with no
+# special priviledges. Doorknob will drop privilege to this user.
+DOORKNOBUSER ?= doorknob
 
 # Used by everybody
 # MAIL_DIR must contain queue and tmp
 MAILDIR ?= /var/spool/doorknob
+
+# Another un-privileged user for the mail queues
+MAILUSER ?= mail
 
 # doorknob only
 USE_CURL ?= 0
@@ -35,7 +42,13 @@ CFLAGS += -DWANT_CURL
 LIBS += -lcurl
 endif
 
-CFLAGS += -DCONFIG_FILE=\"$(CONFIG_FILE)\" -DMAILDIR=\"$(MAILDIR)\"
+CONFFLAGS += -DCONFIGFILE=\"$(CONFIGFILE)\"
+CONFFLAGS += -DMAILDIR=\"$(MAILDIR)\"
+CONFFLAGS += -DDOORKNOBUSER=\"$(DOORKNOBUSER)\"
+CONFFLAGS += -DMAILUSER=\"$(MAILUSER)\"
+
+# C needs quotes, m4 does not
+M4FLAGS = $(subst \",,$(CONFFLAGS))
 
 # If you set D=1 on the command line then $(D:1=-g) returns -g,
 # else it returns the default (-O2).
@@ -48,31 +61,37 @@ V	      = @
 Q	      = $(V:1=)
 QUIET_CC      = $(Q:@=@echo    '     CC       '$@;)
 QUIET_RM      = $(Q:@=@echo    '     RM       '$@;)
+QUIET_M4      = $(Q:@=@echo    '     M4       '$@;)
 
 .c.o:
-	$(QUIET_CC)$(CC) -o $@ -c $(CFLAGS) $<
+	$(QUIET_CC)$(CC) -o $@ -c $(CFLAGS) $(CONFFLAGS) $<
 
 all: doorknob sendmail mailq
 
-doorknob: doorknob.c openssl.c base64.c bear.c utils.c
+doorknob: doorknob.o openssl.o base64.o bear.o utils.o
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
 
-sendmail: sendmail.c
+sendmail: sendmail.o
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
 
-mailq: mailq.c
+mailq: mailq.o
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
 
-install: all
-	install -D doorknob $(DESTDIR)/usr/sbin/doorknob
-	install -D -u mail -g mail sendmail $(DESTDIR)/usr/sbin/sendmail
+# Install only installs the executables
+install: all setup
+	install -d $(DESTDIR)/usr/bin $(DESTDIR)/usr/sbin
+	install doorknob $(DESTDIR)/usr/sbin/doorknob
+	install sendmail $(DESTDIR)/usr/sbin/sendmail
 	rm -f $(DESTDIR)/usr/bin/sendmail
-	install -d $(DESTDIR)/usr/bin
 	ln -s /usr/sbin/sendmail $(DESTDIR)/usr/bin/sendmail
-	install -D --u root -g mail mailq $(DESTDIR)/usr/sbin/mailq
-	install -d -m 777 -u mail -g mail $(DESTDIR)$(MAILDIR)
-	install -d -m 777 -u mail -g mail $(DESTDIR)$(MAILDIR)/queue
-	install -d -m 777 -u mail -g mail $(DESTDIR)$(MAILDIR)/tmp
+	install mailq $(DESTDIR)/usr/sbin/mailq
+
+# To make the developers life easier...
+devinstall: install
+	sh ./setup.sh
+
+setup:
+	$(QUIET_M4)m4 $(M4FLAGS) setup-template > setup.sh
 
 clean:
 	$(QUIET_RM)rm -f doorknob sendmail mailq *.o

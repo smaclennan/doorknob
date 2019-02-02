@@ -1,4 +1,6 @@
+*.o
 doorknob
 sendmail
 mailq
 BearSSL
+setup.sh
