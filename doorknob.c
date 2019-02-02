@@ -31,6 +31,11 @@
 #include <sys/stat.h>
 #include <sys/inotify.h>
 
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+
 #include "doorknob.h"
 
 static char *smtp_server;
@@ -48,6 +53,13 @@ static int use_ssl;
 static short smtp_port = 25;
 static uint32_t smtp_addr; // ipv4 only
 static char hostname[HOST_NAME_MAX + 1];
+
+#ifndef WANT_SSL
+#define openssl_open(s, h) -1
+#define openssl_read(b, c) -1
+#define openssl_write(b, c) -1
+#define openssl_close()
+#endif
 
 static inline int write_string(char *str)
 {
@@ -110,113 +122,6 @@ static int open_spool_file(const char *fname, FILE **fp)
 
 	return 0;
 }
-
-#ifdef WANT_CURL
-#include <curl/curl.h>
-
-static void logsmtp(const char *fname, struct curl_slist *to, CURLcode res)
-{
-	char log[1024];
-	*log = 0;
-
-	strlcat(log, fname, sizeof(log));
-
-	while (to) {
-		strlcat(log, " ", sizeof(log));
-		strlcat(log, to->data, sizeof(log));
-		to = to->next;
-	}
-
-	if (res == 0)
-		strlcat(log, " OK", sizeof(log));
-	else {
-		int n = strlen(log);
-		if (sizeof(log) > n)
-			snprintf(log + n, sizeof(log) - n,
-					 " %d: %s", res, curl_easy_strerror(res));
-	}
-
-	logmsg("%s", log);
-}
-
-static int smtp_one(const char *fname)
-{
-	FILE *fp;
-
-	(void)use_ssl;
-	(void)smtp_port;
-	(void)smtp_addr;
-	(void)hostname;
-
-	int rc = open_spool_file(fname, &fp);
-	if (rc)
-		return rc;
-
-	CURLcode res = 0;
-	struct curl_slist *recipients = NULL;
-	CURL *curl = curl_easy_init();
-	if(!curl) {
-		logmsg("Unable to initialize curl");
-		goto done;
-	}
-
-	char line[128], *p;
-	int first_time = 1;
-	while (fgets(line, sizeof(line), fp) && *line != '\n') {
-		strtok(line, "\r\n");
-		if ((p = strchr(line, '@')))
-			recipients = curl_slist_append(recipients, line);
-		else {
-			if (first_time) {
-				first_time = 0;
-				recipients = curl_slist_append(recipients, mail_from);
-			}
-		}
-	}
-	if (recipients == NULL) {
-		logmsg("Hmmm... no to...");
-		goto done;
-	}
-
-	curl_easy_setopt(curl, CURLOPT_URL, smtp_server);
-	if (starttls)
-		curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_ALL);
-	if (smtp_user) {
-		curl_easy_setopt(curl, CURLOPT_USERNAME, smtp_user);
-		curl_easy_setopt(curl, CURLOPT_PASSWORD, smtp_passwd);
-	}
-	curl_easy_setopt(curl, CURLOPT_MAIL_FROM, mail_from);
-	curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
-	curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
-	curl_easy_setopt(curl, CURLOPT_READDATA, fp);
-	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-	curl_easy_setopt(curl, CURLOPT_VERBOSE, debug);
-
-	looking_for_from = rewrite_from;
-
-	/* Send the message */
-	res = curl_easy_perform(curl);
-	logsmtp(fname, recipients, res);
-
-done:
-	fclose(fp);
-	curl_slist_free_all(recipients);
-	curl_easy_cleanup(curl);
-
-	return res;
-}
-#else
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-
-#ifndef WANT_SSL
-#define openssl_open(s, h) -1
-#define openssl_read(b, c) -1
-#define openssl_write(b, c) -1
-#define openssl_close()
-#endif
 
 static int read_socket(int sock, void *buf, int count)
 {
@@ -462,7 +367,6 @@ done:
 		close(sock);
 	return rc;
 }
-#endif
 
 #define NEED_VAL if (!val) {					\
 		logmsg("%s needs a value", key);		\
@@ -500,12 +404,11 @@ static void read_config(void)
 			NEED_VAL;
 			mail_from = must_strdup(val);
 		} else if (strcmp(key, "starttls") == 0) {
-#if defined(WANT_SSL) || defined(WANT_CURL)
-			starttls = 1;
-#else
+#ifndef WANT_SSL
 			logmsg("starttls not supported");
 			exit(1);
 #endif
+			starttls = 1;
 		} else if (strcmp(key, "rewrite-from") == 0)
 			rewrite_from = 1;
 		else
@@ -528,7 +431,6 @@ static void read_config(void)
 		exit(1);
 	}
 
-#ifndef WANT_CURL
 	char *server = strstr(smtp_server, "://");
 	if (server) {
 		server += 3;
@@ -556,7 +458,6 @@ static void read_config(void)
 		logmsg("hostname: %s", strerror(errno));
 		exit(1);
 	}
-#endif
 }
 
 // This is really to get around the read() return warning.

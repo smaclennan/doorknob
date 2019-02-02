@@ -16,10 +16,6 @@ MAILDIR ?= /var/spool/doorknob
 # Another un-privileged user for the mail queues
 MAILUSER ?= mail
 
-# doorknob only
-USE_CURL ?= 0
-
-# doorknob non-curl only.
 # Setting both to 0 supports smtp only. Username/passwords will be
 # sent in the clear.  Only recommended for local smtp servers.
 USE_OPENSSL ?= 0
@@ -27,7 +23,6 @@ USE_BEAR ?= 1
 
 #### End of user settable
 
-ifeq ($(USE_CURL),0)
 ifeq ($(USE_BEAR),1)
 CFLAGS += -DWANT_BEAR -DWANT_SSL -I BearSSL/inc
 LIBS += BearSSL/build/libbearssl.a
@@ -36,10 +31,6 @@ ifeq ($(USE_OPENSSL),1)
 CFLAGS += -DWANT_OPENSSL -DWANT_SSL
 LIBS += -lssl -lcrypto
 endif
-endif
-else
-CFLAGS += -DWANT_CURL
-LIBS += -lcurl
 endif
 
 CONFFLAGS += -DCONFIGFILE=\"$(CONFIGFILE)\"

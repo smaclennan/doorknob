@@ -81,8 +81,7 @@ If you don't need a username/password or are connecting to a local
 smtp server on a local network where you trust EVERYBODY on the
 network, then you do not need SSL.
 
-Currently doorknob supports BearSSL, OpenSSL, and Curl in increasing
-order of size.
+Currently doorknob supports BearSSL and OpenSSL.
 
 
 How It Works

@@ -1,4 +1,3 @@
-#ifndef WANT_CURL
 #include "doorknob.h"
 
 static char alphabet[] = {
@@ -61,5 +60,3 @@ int mkauthplain(const char *user, const char *passwd, char *plain, int len)
 
 	return 0;
 }
-
-#endif
