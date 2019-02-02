@@ -55,10 +55,10 @@ static uint32_t smtp_addr; // ipv4 only
 static char hostname[HOST_NAME_MAX + 1];
 
 #ifndef WANT_SSL
-#define openssl_open(s, h) -1
-#define openssl_read(b, c) -1
-#define openssl_write(b, c) -1
-#define openssl_close()
+#define ssl_open(s, h) -1
+#define ssl_read(b, c) -1
+#define ssl_write(b, c) -1
+#define ssl_close()
 #endif
 
 static inline int write_string(char *str)
@@ -126,7 +126,7 @@ static int open_spool_file(const char *fname, FILE **fp)
 static int read_socket(int sock, void *buf, int count)
 {
 	if (use_ssl)
-		return openssl_read(buf, count);
+		return ssl_read(buf, count);
 	else
 		return read(sock, buf, count);
 }
@@ -134,7 +134,7 @@ static int read_socket(int sock, void *buf, int count)
 static int write_socket(int sock, const void *buf, int count)
 {
 	if (use_ssl)
-		return openssl_write(buf, count);
+		return ssl_write(buf, count);
 	else
 		return write(sock, buf, count);
 }
@@ -270,7 +270,7 @@ static int smtp_one(const char *fname)
 	if (use_ssl) {
 		if (starttls)
 			use_ssl = 0; /* reset for first hello */
-		else if (openssl_open(sock, smtp_server))
+		else if (ssl_open(sock, smtp_server))
 			goto done;
 	}
 
@@ -283,7 +283,7 @@ static int smtp_one(const char *fname)
 		if (send_str(sock, "STARTTLS\r\n", 220))
 			goto done;
 
-		if (openssl_open(sock, smtp_server))
+		if (ssl_open(sock, smtp_server))
 			goto done;
 
 		use_ssl = 1;
@@ -362,7 +362,7 @@ static int smtp_one(const char *fname)
 
 done:
 	fclose(fp);
-    openssl_close();
+    ssl_close();
 	if (sock != -1)
 		close(sock);
 	return rc;

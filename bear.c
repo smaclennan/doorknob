@@ -1,4 +1,4 @@
-#ifdef WANT_BEAR
+#ifdef WANT_SSL
 
 #include <unistd.h>
 #include <errno.h>
@@ -106,7 +106,7 @@ sock_write(void *ctx, const unsigned char *buf, size_t len)
 	return wlen;
 }
 
-int openssl_open(int sock, const char *host)
+int ssl_open(int sock, const char *host)
 {
 	br_ssl_client_init_full(&sc, &xc, NULL, 0);
 
@@ -124,19 +124,19 @@ int openssl_open(int sock, const char *host)
 	return 0;
 }
 
-int openssl_read(char *buffer, int len)
+int ssl_read(char *buffer, int len)
 {
 	return br_sslio_read(&ioc, buffer, len);
 }
 
-int openssl_write(const char *buffer, int len)
+int ssl_write(const char *buffer, int len)
 {
 	int rc = br_sslio_write_all(&ioc, buffer, len);
 	br_sslio_flush(&ioc);
 	return rc == 0 ? len : -1;
 }
 
-void openssl_close(void)
+void ssl_close(void)
 {
 	if (br_ssl_engine_current_state(&sc.eng) == BR_SSL_CLOSED) {
 		int err = br_ssl_engine_last_error(&sc.eng);

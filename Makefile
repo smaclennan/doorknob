@@ -16,22 +16,16 @@ MAILDIR ?= /var/spool/doorknob
 # Another un-privileged user for the mail queues
 MAILUSER ?= mail
 
-# Setting both to 0 supports smtp only. Username/passwords will be
+# Setting to 0 supports smtp only. Username/passwords will be
 # sent in the clear.  Only recommended for local smtp servers.
-USE_OPENSSL ?= 0
 USE_BEAR ?= 1
 
-#### End of user settable
-
 ifeq ($(USE_BEAR),1)
-CFLAGS += -DWANT_BEAR -DWANT_SSL -I BearSSL/inc
+CFLAGS += -DWANT_SSL -I BearSSL/inc
 LIBS += BearSSL/build/libbearssl.a
-else
-ifeq ($(USE_OPENSSL),1)
-CFLAGS += -DWANT_OPENSSL -DWANT_SSL
-LIBS += -lssl -lcrypto
 endif
-endif
+
+#### End of user settable
 
 CONFFLAGS += -DCONFIGFILE=\"$(CONFIGFILE)\"
 CONFFLAGS += -DMAILDIR=\"$(MAILDIR)\"
@@ -59,7 +53,7 @@ QUIET_M4      = $(Q:@=@echo    '     M4       '$@;)
 
 all: doorknob sendmail mailq
 
-doorknob: doorknob.o openssl.o base64.o bear.o utils.o
+doorknob: doorknob.o bear.o utils.o
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
 
 sendmail: sendmail.o
