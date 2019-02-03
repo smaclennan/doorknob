@@ -48,13 +48,8 @@ You can test doorknob in the foreground using `sudo doorknob -d'. Send
 a couple of mails and make sure there are no errors.
 
 You can now use your favorite init script or supervisor system to
-start doorknob. A sample rc.doorknob is included.
-
-
-rc.doorknob
------------
-
-Tested with Slackware and also with Ubuntu. For Ubuntu copy
+start doorknob. A sample rc.doorknob is included. The rc.doorknob was
+tested with Slackware and also with Ubuntu. For Ubuntu copy
 rc.doorknob to /etc/init.d/doorknob. This should work for
 RedHat/Centos too, but I haven't tested it.
 
