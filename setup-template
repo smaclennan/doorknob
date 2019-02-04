@@ -29,6 +29,11 @@ chmod +s /usr/sbin/sendmail
 chown MAILUSER`.'MAILUSER /usr/sbin/mailq
 chmod +s /usr/sbin/mailq
 
+# Make the queues
+mkdir -p MAILDIR
+mkdir -p MAILDIR/queue
+mkdir -p MAILDIR/tmp
+
 # Fixup the queues
 chown MAILUSER`.'MAILUSER MAILDIR
 chown MAILUSER`.'MAILUSER MAILDIR`/queue'
