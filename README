@@ -87,9 +87,9 @@ interface with doorknob directly.
 
 I am going to assume the defaults here.
 
-Doorknob watches the /var/spool/mail/queue directory for new files and
+Doorknob watches the /var/spool/doorknob/queue directory for new files and
 then sends them. You should create the file somewhere else
-(/var/spool/mail/tmp is used by sendmail) and then move it into the
+(/var/spool/doorknob/tmp is used by sendmail) and then move it into the
 queue directory.
 
 The file name doesn't really matter as long as it isn't a hidden
@@ -121,6 +121,6 @@ Ubuntu Warning
 --------------
 
 Of course Ubuntu has to be the problem child. The default mail program
-is evil and uses "sendmail -t". Since I don't support this option
-right now, you either need to look elsewhere (maybe nullmailer?) or do
-an "apt install s-nail".
+is evil and uses "sendmail -t". Since I don't support this option, and
+don't plan to, you either need to look elsewhere (maybe nullmailer?)
+or do an "apt install s-nail".
