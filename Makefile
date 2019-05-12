@@ -54,7 +54,7 @@ QUIET_M4      = $(Q:@=@echo    '     M4       '$@;)
 
 all: doorknob sendmail mailq
 
-doorknob: doorknob.o bear.o utils.o
+doorknob: doorknob.o bear.o bear-tools.o utils.o
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
 
 sendmail: sendmail.o

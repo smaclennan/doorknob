@@ -4,6 +4,7 @@
 #include <errno.h>
 #include "doorknob.h"
 #include "bearssl.h"
+#include "brssl.h"
 
 /* WARNING: If you do not provide a $HOME/.rtf.d/cert file, then the
  * code falls back to "no anchor" mode. This is very insecure but
@@ -14,12 +15,6 @@
 openssl s_client -connect google.ca:443 -showcerts > /tmp/out
 massage /tmp/out - You want the second cert
 */
-
-#include "BearSSL/tools/certs.c"
-#include "BearSSL/tools/xmem.c"
-#include "BearSSL/tools/vector.c"
-#include "BearSSL/tools/files.c"
-#include "BearSSL/tools/names.c"
 
 typedef VECTOR(br_x509_certificate) cert_list;
 
