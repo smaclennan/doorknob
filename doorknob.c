@@ -411,7 +411,15 @@ static void read_config(void)
 			starttls = 1;
 		} else if (strcmp(key, "rewrite-from") == 0)
 			rewrite_from = 1;
-		else
+		else if (strcmp(key, "cert") == 0) {
+#ifdef WANT_SSL
+			NEED_VAL;
+			if (ssl_read_cert(val)) {
+				logmsg("Bad cert file %s", val);
+				exit(1);
+			}
+#endif
+		} else
 			logmsg("Unexpected key %s", key);
 	}
 
@@ -519,7 +527,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	/* Do this after inotify setup */
+	read_config();
+
+	/* Do this after inotify setup and reading config */
 	if (no_change == 0) {
 		struct passwd *pw = getpwnam(DOORKNOBUSER);
 		if (!pw) {
@@ -537,8 +547,6 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 	}
-
-	read_config();
 
 	if (foreground == 0) {
 		if (daemon(1, 0))
