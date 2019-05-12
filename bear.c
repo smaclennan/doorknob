@@ -16,19 +16,13 @@ openssl s_client -connect google.ca:443 -showcerts > /tmp/out
 massage /tmp/out - You want the second cert
 */
 
-typedef VECTOR(br_x509_certificate) cert_list;
-
 static anchor_list anchors = VEC_INIT;
 
-/* Called from read_config(). Note we do not cleanup memory on
- * error. If ssl_read_cert returns non-zero imap-rtf will exit.
- */
+/* Called from read_config(). */
 int ssl_read_cert(const char *fname)
 {
-	if (read_trust_anchors(&anchors, fname) == 0) {
-		logmsg("Bad cert file %s\n", fname);
+	if (read_trust_anchors(&anchors, fname) == 0)
 		return 1;
-	}
 	return 0;
 }
 
