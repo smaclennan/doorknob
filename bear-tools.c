@@ -38,11 +38,50 @@ typedef struct {
 	size_t data_len;
 } pem_object;
 
-static void *xmalloc(size_t len);
-static void xfree(void *buf);
-static char *xstrdup(const void *src);
-static void *xblobdup(const void *src, size_t len);
-static int eqstr(const char *s1, const char *s2);
+/* see brssl.h */
+static void *
+xmalloc(size_t len)
+{
+	void *buf;
+
+	if (len == 0) {
+		return NULL;
+	}
+	buf = malloc(len);
+	if (buf == NULL) {
+		fprintf(stderr, "ERROR: could not allocate %lu byte(s)\n",
+			(unsigned long)len);
+		exit(EXIT_FAILURE);
+	}
+	return buf;
+}
+
+/* see brssl.h */
+static void
+xfree(void *buf)
+{
+	if (buf != NULL) {
+		free(buf);
+	}
+}
+
+/* see brssl.h */
+static void *
+xblobdup(const void *src, size_t len)
+{
+	void *buf;
+
+	buf = xmalloc(len);
+	memcpy(buf, src, len);
+	return buf;
+}
+
+/* see brssl.h */
+static char *
+xstrdup(const void *src)
+{
+	return xblobdup(src, strlen(src) + 1);
+}
 
 /*
  * Macros for growable arrays.
@@ -97,16 +136,123 @@ static int eqstr(const char *s1, const char *s2);
 #define VEC_TOARRAY(vec)    xblobdup((vec).buf, sizeof *((vec).buf) * (vec).ptr)
 
 /*
- * Internal function used to handle memory allocations for vectors.
+ * Prepare a vector buffer for adding 'extra' elements.
+ *   buf      current buffer
+ *   esize    size of a vector element
+ *   ptr      pointer to the 'ptr' vector field
+ *   len      pointer to the 'len' vector field
+ *   extra    number of elements to add
+ *
+ * If the buffer must be enlarged, then this function allocates the new
+ * buffer and releases the old one. The new buffer address is then returned.
+ * If the buffer needs not be enlarged, then the buffer address is returned.
+ *
+ * In case of enlargement, the 'len' field is adjusted accordingly. The
+ * 'ptr' field is not modified.
  */
-static void *vector_expand(void *buf,
-	size_t esize, size_t *ptr, size_t *len, size_t extra);
+static void *
+vector_expand(void *buf,
+	size_t esize, size_t *ptr, size_t *len, size_t extra)
+{
+	size_t nlen;
+	void *nbuf;
+
+	if (*len - *ptr >= extra) {
+		return buf;
+	}
+	nlen = (*len << 1);
+	if (nlen - *ptr < extra) {
+		nlen = extra + *ptr;
+		if (nlen < 8) {
+			nlen = 8;
+		}
+	}
+	nbuf = xmalloc(nlen * esize);
+	if (buf != NULL) {
+		memcpy(nbuf, buf, *len * esize);
+		xfree(buf);
+	}
+	*len = nlen;
+	return nbuf;
+}
 
 /*
  * Type for a vector of bytes.
  */
 typedef VECTOR(unsigned char) bvector;
 
+static int
+is_ign(int c)
+{
+	if (c == 0) {
+		return 0;
+	}
+	if (c <= 32 || c == '-' || c == '_' || c == '.'
+		|| c == '/' || c == '+' || c == ':')
+	{
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ * Get next non-ignored character, normalised:
+ *    ASCII letters are converted to lowercase
+ *    control characters, space, '-', '_', '.', '/', '+' and ':' are ignored
+ * A terminating zero is returned as 0.
+ */
+static int
+next_char(const char **ps, const char *limit)
+{
+	for (;;) {
+		int c;
+
+		if (*ps == limit) {
+			return 0;
+		}
+		c = *(*ps) ++;
+		if (c == 0) {
+			return 0;
+		}
+		if (c >= 'A' && c <= 'Z') {
+			c += 'a' - 'A';
+		}
+		if (!is_ign(c)) {
+			return c;
+		}
+	}
+}
+
+/*
+ * Partial string equality comparison, with normalisation.
+ */
+static int
+eqstr_chunk(const char *s1, size_t s1_len, const char *s2, size_t s2_len)
+{
+	const char *lim1, *lim2;
+
+	lim1 = s1 + s1_len;
+	lim2 = s2 + s2_len;
+	for (;;) {
+		int c1, c2;
+
+		c1 = next_char(&s1, lim1);
+		c2 = next_char(&s2, lim2);
+		if (c1 != c2) {
+			return 0;
+		}
+		if (c1 == 0) {
+			return 1;
+		}
+	}
+}
+
+/* see brssl.h */
+static int
+eqstr(const char *s1, const char *s2)
+{
+	return eqstr_chunk(s1, strlen(s1), s2, strlen(s2));
+}
 
 /* see brssl.h */
 static unsigned char *
@@ -541,163 +687,4 @@ x509_noanchor_init(x509_noanchor_context *xwc, const br_x509_class **inner)
 {
 	xwc->vtable = &x509_noanchor_vtable;
 	xwc->inner = inner;
-}
-
-/* see brssl.h */
-static void *
-xmalloc(size_t len)
-{
-	void *buf;
-
-	if (len == 0) {
-		return NULL;
-	}
-	buf = malloc(len);
-	if (buf == NULL) {
-		fprintf(stderr, "ERROR: could not allocate %lu byte(s)\n",
-			(unsigned long)len);
-		exit(EXIT_FAILURE);
-	}
-	return buf;
-}
-
-/* see brssl.h */
-static void
-xfree(void *buf)
-{
-	if (buf != NULL) {
-		free(buf);
-	}
-}
-
-/* see brssl.h */
-static void *
-xblobdup(const void *src, size_t len)
-{
-	void *buf;
-
-	buf = xmalloc(len);
-	memcpy(buf, src, len);
-	return buf;
-}
-
-/* see brssl.h */
-static char *
-xstrdup(const void *src)
-{
-	return xblobdup(src, strlen(src) + 1);
-}
-
-/*
- * Prepare a vector buffer for adding 'extra' elements.
- *   buf      current buffer
- *   esize    size of a vector element
- *   ptr      pointer to the 'ptr' vector field
- *   len      pointer to the 'len' vector field
- *   extra    number of elements to add
- *
- * If the buffer must be enlarged, then this function allocates the new
- * buffer and releases the old one. The new buffer address is then returned.
- * If the buffer needs not be enlarged, then the buffer address is returned.
- *
- * In case of enlargement, the 'len' field is adjusted accordingly. The
- * 'ptr' field is not modified.
- */
-static void *
-vector_expand(void *buf,
-	size_t esize, size_t *ptr, size_t *len, size_t extra)
-{
-	size_t nlen;
-	void *nbuf;
-
-	if (*len - *ptr >= extra) {
-		return buf;
-	}
-	nlen = (*len << 1);
-	if (nlen - *ptr < extra) {
-		nlen = extra + *ptr;
-		if (nlen < 8) {
-			nlen = 8;
-		}
-	}
-	nbuf = xmalloc(nlen * esize);
-	if (buf != NULL) {
-		memcpy(nbuf, buf, *len * esize);
-		xfree(buf);
-	}
-	*len = nlen;
-	return nbuf;
-}
-
-static int
-is_ign(int c)
-{
-	if (c == 0) {
-		return 0;
-	}
-	if (c <= 32 || c == '-' || c == '_' || c == '.'
-		|| c == '/' || c == '+' || c == ':')
-	{
-		return 1;
-	}
-	return 0;
-}
-
-/*
- * Get next non-ignored character, normalised:
- *    ASCII letters are converted to lowercase
- *    control characters, space, '-', '_', '.', '/', '+' and ':' are ignored
- * A terminating zero is returned as 0.
- */
-static int
-next_char(const char **ps, const char *limit)
-{
-	for (;;) {
-		int c;
-
-		if (*ps == limit) {
-			return 0;
-		}
-		c = *(*ps) ++;
-		if (c == 0) {
-			return 0;
-		}
-		if (c >= 'A' && c <= 'Z') {
-			c += 'a' - 'A';
-		}
-		if (!is_ign(c)) {
-			return c;
-		}
-	}
-}
-
-/*
- * Partial string equality comparison, with normalisation.
- */
-static int
-eqstr_chunk(const char *s1, size_t s1_len, const char *s2, size_t s2_len)
-{
-	const char *lim1, *lim2;
-
-	lim1 = s1 + s1_len;
-	lim2 = s2 + s2_len;
-	for (;;) {
-		int c1, c2;
-
-		c1 = next_char(&s1, lim1);
-		c2 = next_char(&s2, lim2);
-		if (c1 != c2) {
-			return 0;
-		}
-		if (c1 == 0) {
-			return 1;
-		}
-	}
-}
-
-/* see brssl.h */
-static int
-eqstr(const char *s1, const char *s2)
-{
-	return eqstr_chunk(s1, strlen(s1), s2, strlen(s2));
 }
