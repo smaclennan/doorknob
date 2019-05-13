@@ -18,10 +18,11 @@ MAILUSER ?= mail
 
 # Doorknob only. Setting to 0 supports smtp only. Username/passwords
 # will be sent in the clear. Only recommended for local smtp servers.
-USE_BEAR ?= 1
+#USE_BEAR ?= 1
 
 # Tweak this if you have BearSSL installed somewhere else.
 ifeq ($(USE_BEAR),1)
+BEAR_FILES = bear.o bear-tools.o
 CFLAGS += -DWANT_SSL -I BearSSL/inc
 LIBS += BearSSL/build/libbearssl.a
 endif
@@ -54,7 +55,7 @@ QUIET_M4      = $(Q:@=@echo    '     M4       '$@;)
 
 all: doorknob sendmail mailq
 
-doorknob: doorknob.o bear.o bear-tools.o utils.o
+doorknob: doorknob.o utils.o $(BEAR_FILES)
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+ $(LIBS)
 
 sendmail: sendmail.o

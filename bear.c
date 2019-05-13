@@ -1,5 +1,3 @@
-#ifdef WANT_SSL
-
 #include <unistd.h>
 #include <errno.h>
 #include "doorknob.h"
@@ -96,7 +94,4 @@ void ssl_close(void)
 		if (err)
 			logmsg("SSL error %d", err);
 	}
-	// else normal case
 }
-
-#endif

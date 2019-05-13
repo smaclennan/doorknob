@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-/* This is the code from various BearSSL/tools C files that was needed
+/* This is the code from various BearSSL/tools C files that where needed
  * to read the certificates and deal with noanchor mode. None of this
  * code is mine.
  */
