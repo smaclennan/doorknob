@@ -18,13 +18,14 @@ MAILUSER ?= mail
 
 # Doorknob only. Setting to 0 supports smtp only. Username/passwords
 # will be sent in the clear. Only recommended for local smtp servers.
-#USE_BEAR ?= 1
+USE_BEAR ?= 1
 
 # Tweak this if you have BearSSL installed somewhere else.
 ifeq ($(USE_BEAR),1)
 BEAR_FILES = bear.o bear-tools.o
-CFLAGS += -DWANT_SSL -I BearSSL/inc
-LIBS += BearSSL/build/libbearssl.a
+BEARDIR ?= ./BearSSL
+CFLAGS += -DWANT_SSL -I $(BEARDIR)/inc
+LIBS += $(BEARDIR)/build/libbearssl.a
 endif
 
 #### End of user settable
