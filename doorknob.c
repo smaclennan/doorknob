@@ -557,16 +557,20 @@ int main(int argc, char *argv[])
 
 	while (1) {
 		struct dirent *ent;
+		int timeout = 3600000; // one hour
 
 		rewinddir(dir);
 		while ((ent = readdir(dir)))
-			if (*ent->d_name != '.')
-				if (smtp_one(ent->d_name) >= 0)
+			if (*ent->d_name != '.') {
+				if (smtp_one(ent->d_name) >= 0) {
 					if (unlink(ent->d_name))
 						logmsg("unlink %s: %s", strerror(errno));
+				} else
+					// More aggressive timeout if smtp_one failed
+					timeout = 60000; // one minute
+			}
 
-		/* Timeout every hour */
-		if (poll(&ufd, 1, 3600000) == 1)
+		if (poll(&ufd, 1, timeout) == 1)
 			read_event(fd);
 	}
 
