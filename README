@@ -64,19 +64,17 @@ on a local network where security is not really a consideration. So
 doorknob lets them do that job and just does as little as
 possible. Maybe doorknob isn't as dumb as he looks.
 
-A note about SSL. Doorknob makes no attempt to validate against the
-server. This makes life much easier since we don't need to deal with
-certificates. But it does mean it is less secure.
+A note about SSL. Doorknob makes can be run with no certificates. This
+is easier, but we do not guarantee we are talking to the right server.
 
-So why use SSL? If you need a username/password to connect to the smtp
-server you do not want to send the password in the clear. The SSL
-solves this problem.
+You can specify the cert files with 'cert' entries in the config
+file. You should have at least two files: one from the server and the
+trusted root.
 
-If you don't need a username/password or are connecting to a local
-smtp server on a local network where you trust EVERYBODY on the
-network, then you do not need SSL.
+Currently doorknob supports BearSSL. To verify the certs you can use
+the brssl program from BearSSL.
 
-Currently doorknob supports BearSSL.
+brssl verify -CA <cert-root-file> <server-cert-file>
 
 
 How It Works
