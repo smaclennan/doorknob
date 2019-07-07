@@ -177,6 +177,7 @@ int main(int argc, char *argv[])
 		}
 		my_write(fd, "\n", 1);
 	}
+	my_write(fd, "\n", 1);
 
 	// Write out the from
 	char from[128], *p;
