@@ -39,8 +39,13 @@ static int create_tmp_file(void)
 	struct timeval now;
 
 	gettimeofday(&now, NULL);
+#ifdef __QNX__
+	snprintf(tmp_file, sizeof(tmp_file), "%lu.%06d.%d",
+			 now.tv_sec, now.tv_usec, getpid());
+#else
 	snprintf(tmp_file, sizeof(tmp_file), "%lu.%06ld.%d",
 			 now.tv_sec, now.tv_usec, getpid());
+#endif
 
 	snprintf(tmp_path, sizeof(tmp_path), "tmp/%s", tmp_file);
 	snprintf(real_path, sizeof(real_path), "queue/%s", tmp_file);

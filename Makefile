@@ -2,6 +2,11 @@
 
 #### User settable
 
+# # For QNX
+# CC = ntox86_64-gcc
+# LIBS += -lsocket
+# USE_BEAR = 0
+
 # This is needed by doorknob only
 CONFIGFILE ?= /etc/doorknob.conf
 

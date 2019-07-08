@@ -1,6 +1,14 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifndef HOST_NAME_MAX
+#define HOST_NAME_MAX 64
+#endif
+
+#ifndef NAME_MAX
+#define NAME_MAX 255
+#endif
+
 /* Exported from doorknob.c */
 void logmsg(const char *fmt, ...);
 
