@@ -136,10 +136,12 @@ invalid:
 int main(int argc, char *argv[])
 {
 	int c, evil_t = 0;
+	char buff[4096];
 
-	while ((c = getopt(argc, argv, "it")) != EOF)
+	while ((c = getopt(argc, argv, "io:t")) != EOF)
 		switch (c) {
 		case 'i': break;
+		case 'o': break;
 		case 't': evil_t = 1; break;
 		}
 
@@ -167,34 +169,36 @@ int main(int argc, char *argv[])
 
 	int fd = create_tmp_file();
 
-	if (evil_t)
+	if (evil_t) {
 		look_for_to(fd);
-	else {
+
+		int n;
+		while ((n = fread(buff, 1, sizeof(buff), stdin)) > 0)
+			my_write(fd, buff, n);
+	} else {
 		// Write out the recipients
 		for (int i = optind; i < argc; ++i) {
 			my_write(fd, argv[i], strlen(argv[i]));
 			my_write(fd, "\n", 1);
 		}
 		my_write(fd, "\n", 1);
+
+		// Write out the from
+		char from[128], *p;
+		snprintf(from, sizeof(from), "From: %s", pw->pw_gecos);
+		if ((p = strchr(from, ','))) *p = 0;
+		int n = strlen(from);
+		n += snprintf(from + n, sizeof(from) - n, " <%s@%s>\n", pw->pw_name, hostname);
+		my_write(fd, from, n);
+
+		/* Read the email and write to file */
+		while ((n = read(0, buff, sizeof(buff))) > 0)
+			if (write(fd, buff, n) != n)
+				goto write_error;
+
+		if (n)
+			goto read_error;
 	}
-	my_write(fd, "\n", 1);
-
-	// Write out the from
-	char from[128], *p;
-	snprintf(from, sizeof(from), "From: %s", pw->pw_gecos);
-	if ((p = strchr(from, ','))) *p = 0;
-	int n = strlen(from);
-	n += snprintf(from + n, sizeof(from) - n, " <%s@%s>\n", pw->pw_name, hostname);
-	my_write(fd, from, n);
-
-	/* Read the email and write to file */
-	char buff[4096];
-	while ((n = read(0, buff, sizeof(buff))) > 0)
-		if (write(fd, buff, n) != n)
-			goto write_error;
-
-	if (n)
-		goto read_error;
 
 	if (total_len != total_write)
 		goto write_error;
