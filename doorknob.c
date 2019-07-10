@@ -62,6 +62,45 @@ static char hostname[HOST_NAME_MAX + 1];
 #define ssl_close()
 #endif
 
+#ifdef __QNX__
+#include <sys/slog2.h>
+#include <sys/procmgr.h>
+
+static void logging_init(void)
+{
+	slog2_buffer_t buffer_handle;
+	slog2_buffer_set_config_t buffer_config;
+
+    buffer_config.num_buffers = 1;
+    buffer_config.buffer_set_name = "doorknob";
+    buffer_config.verbosity_level = SLOG2_INFO;
+    buffer_config.buffer_config[0].buffer_name = "doorknob";
+    buffer_config.buffer_config[0].num_pages = 1;
+
+    if (slog2_register(&buffer_config, &buffer_handle, 0)) {
+        fprintf(stderr, "Error registering slog2 buffer!\n");
+        exit(1);
+    }
+
+	slog2_set_default_buffer(buffer_handle);
+}
+
+static void sys_log(const char *msg)
+{
+	slog2c(NULL, 0, SLOG2_INFO, msg);
+}
+#else
+static void logging_init(void)
+{
+	openlog("doorknob", 0, LOG_MAIL);
+}
+
+static void sys_log(const char *msg)
+{
+	syslog(LOG_INFO, "%s", msg);
+}
+#endif
+
 static inline int write_string(char *str)
 {
 	strcat(str, "\n");
@@ -80,7 +119,7 @@ void logmsg(const char *fmt, ...)
 	if (use_stderr)
 		write_string(msg);
 	else
-		syslog(LOG_INFO, "%s", msg);
+		sys_log(msg);
 }
 
 static int looking_for_from;
@@ -491,7 +530,7 @@ int main(int argc, char *argv[])
 {
 	int c, no_change = 0;
 
-	openlog("doorknob", 0, LOG_MAIL);
+	logging_init();
 
 	while ((c = getopt(argc, argv, "CDFdfhs")) != EOF)
 		switch (c) {
@@ -550,8 +589,14 @@ int main(int argc, char *argv[])
 	}
 
 	if (foreground == 0) {
+#ifdef __QNX__
+		// daemon call causes slog2 to stop working
+		if (procmgr_daemon(0, PROCMGR_DAEMON_NOCLOSE | PROCMGR_DAEMON_NOCHDIR))
+			logmsg("daemon: %s", strerror(errno));
+#else
 		if (daemon(1, 0))
 			logmsg("daemon: %s", strerror(errno));
+#endif
 	}
 
 	struct pollfd ufd = { .fd = fd, .events = POLLIN };

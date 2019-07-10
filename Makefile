@@ -4,7 +4,7 @@
 
 # # For QNX
 # CC = ntox86_64-gcc
-# LIBS += -lsocket
+# LIBS += -lsocket -lslog2
 # USE_BEAR = 0
 
 # This is needed by doorknob only
