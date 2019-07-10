@@ -70,7 +70,6 @@ sendmail: sendmail.o
 mailq: mailq.o
 	$(QUIET_CC)$(CC) $(CFLAGS) -o $@ $+
 
-# Install only installs the executables
 install: all setup
 	install -d $(DESTDIR)/usr/bin $(DESTDIR)/usr/sbin
 	install doorknob $(DESTDIR)/usr/sbin/doorknob
@@ -78,9 +77,6 @@ install: all setup
 	rm -f $(DESTDIR)/usr/bin/sendmail
 	ln -s /usr/sbin/sendmail $(DESTDIR)/usr/bin/sendmail
 	install mailq $(DESTDIR)/usr/sbin/mailq
-
-# To make the developers life easier...
-devinstall: install
 	sh ./setup.sh
 
 setup:
