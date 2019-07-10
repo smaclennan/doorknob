@@ -70,69 +70,95 @@ static int my_write(int fd, const void *buf, size_t len)
 	return n;
 }
 
-static void add_to_buffer(const char *line, ssize_t len, char **buffer, size_t *blen)
-{
-	*buffer = realloc(*buffer, *blen + len);
-	if (!*buffer) {
-		fputs("Out of buffer space!\n", stderr);
-		exit(1);
-	}
-	memcpy(*buffer + *blen, line, len);
-	*blen += len;
-}
+
+/* This is good for well over 1000 tos */
+static char buff[64 * 1024];
+static int blen;
 
 static void out_one(const char *to, int fd)
 {
-	int len = strlen(to);
-	my_write(fd, to, len);
-	my_write(fd, "\n", 1);
+	if (*to) {
+		int len = strlen(to);
+		my_write(fd, to, len);
+		my_write(fd, "\n", 1);
+	}
 }
 
-static void output_to(char *line, int fd)
-{
-	char *to, *p;
+#define RESET \
+	p = to; \
+	*p = 0; \
+	++line; \
+	while (*line == ' ' || *line == '\t') ++line
 
-	line += 3;
-	if (*line != ':') ++line; // Bcc
-	while ((to = strtok(line, ",\r\n"))) {
-		line = NULL;
-		while (isspace(*to)) ++to;
-		if ((p = strchr(to, '<'))) {
-			to = p + 1;
-			if ((p = strchr(to, '>')))
-				*p = 0;
+static void output_to(const char *line, int fd)
+{
+	char to[64], *p;
+
+	while (*line != ':') ++line;
+	RESET;
+
+	while (*line) {
+		switch (*line) {
+		case '<':
+			RESET;
+			break;
+		case '>':
+			*p = 0;
 			out_one(to, fd);
-		} else
+			RESET;
+			break;
+
+		case ',':
+			*p = 0;
 			out_one(to, fd);
+			RESET;
+			break;
+
+		case '\r':
+		case '\n':
+			*p = 0;
+			out_one(to, fd);
+			return; // done
+
+		default:
+			if (p < &to[62])
+				*p++ = *line++;
+			else
+				++line;
+		}
 	}
 }
 
 static void look_for_to(int fd)
 {
-	char *line = NULL, *buffer = NULL;
-	size_t len = 0, blen = 0, count = 0;
-	ssize_t n;
+	int count = 0;
 
-	while ((n = getline(&line, &len, stdin)) != -1) {
-		add_to_buffer(line, n, &buffer, &blen);
+	blen = read(0, buff, sizeof(buff) - 1);
+	if (blen <= 0)
+		goto invalid;
+	buff[blen] = 0;
+
+	const char *line = buff;
+	do {
+		if (*line == '\n') ++line;
 
 		if (strncasecmp(line, "To:", 3) == 0 ||
 			strncasecmp(line, "Cc:", 3) == 0 ||
 			strncasecmp(line, "Bcc:", 4) == 0) {
 			// found one
-			output_to(line, fd);
 			++count;
+			output_to(line, fd);
+			continue; // we already should be at EOL
 		} else if (*line == '\n' || *line == '\r') {
 			// end of header
 			if (count == 0)
 				goto invalid;
 			my_write(fd, "\n", 1); // end of recipients
-			my_write(fd, buffer, blen);
-			free(line);
-			free(buffer);
+			my_write(fd, buff, blen);
 			return;
 		}
-	}
+	} while ((line = strchr(line, '\n')));
+
 invalid:
 	fputs("Invalid header\n", stderr);
 	exit(1);
@@ -140,8 +166,7 @@ invalid:
 
 int main(int argc, char *argv[])
 {
-	int c, evil_t = 0;
-	char buff[4096];
+	int c, n, evil_t = 0;
 
 	while ((c = getopt(argc, argv, "io:t")) != EOF)
 		switch (c) {
@@ -174,13 +199,9 @@ int main(int argc, char *argv[])
 
 	int fd = create_tmp_file();
 
-	if (evil_t) {
+	if (evil_t)
 		look_for_to(fd);
-
-		int n;
-		while ((n = fread(buff, 1, sizeof(buff), stdin)) > 0)
-			my_write(fd, buff, n);
-	} else {
+	else {
 		// Write out the recipients
 		for (int i = optind; i < argc; ++i) {
 			my_write(fd, argv[i], strlen(argv[i]));
@@ -192,18 +213,18 @@ int main(int argc, char *argv[])
 		char from[128], *p;
 		snprintf(from, sizeof(from), "From: %s", pw->pw_gecos);
 		if ((p = strchr(from, ','))) *p = 0;
-		int n = strlen(from);
+		n = strlen(from);
 		n += snprintf(from + n, sizeof(from) - n, " <%s@%s>\n", pw->pw_name, hostname);
 		my_write(fd, from, n);
-
-		/* Read the email and write to file */
-		while ((n = read(0, buff, sizeof(buff))) > 0)
-			if (write(fd, buff, n) != n)
-				goto write_error;
-
-		if (n)
-			goto read_error;
 	}
+
+	/* Read the email and write to file */
+	while ((n = read(0, buff, sizeof(buff))) > 0)
+		if (write(fd, buff, n) != n)
+			goto write_error;
+
+	if (n)
+		goto read_error;
 
 	if (total_len != total_write)
 		goto write_error;
