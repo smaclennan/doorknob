@@ -53,7 +53,7 @@ static int create_tmp_file(void)
 
 	/* Yes, it must be world writable for doorknob. This file is
 	 * protected by the directory permissions. */
-	umask(111);
+	umask(0111);
 	int fd = creat(tmp_path, 0666);
 	if (fd < 0) {
 		perror(tmp_path);
