@@ -168,10 +168,13 @@ invalid:
 
 int main(int argc, char *argv[])
 {
-	int c, n, evil_t = 0;
+	int c, n, evil_t = 0, from_opt = 0;
 
-	while ((c = getopt(argc, argv, "io:t")) != EOF)
+	while ((c = getopt(argc, argv, "f:F:io:r:t")) != EOF)
 		switch (c) {
+		case 'f': from_opt = 1; break;
+		case 'F': break;
+		case 'r': from_opt = 1; break;
 		case 'i': break;
 		case 'o': break;
 		case 't': evil_t = 1; break;
@@ -211,13 +214,15 @@ int main(int argc, char *argv[])
 		}
 		my_write(fd, "\n", 1);
 
-		// Write out the from
-		char from[128], *p;
-		snprintf(from, sizeof(from), "From: %s", pw->pw_gecos);
-		if ((p = strchr(from, ','))) *p = 0;
-		n = strlen(from);
-		n += snprintf(from + n, sizeof(from) - n, " <%s@%s>\n", pw->pw_name, hostname);
-		my_write(fd, from, n);
+		if (from_opt == 0) {
+			// Write out the from
+			char from[128], *p;
+			snprintf(from, sizeof(from), "From: %s", pw->pw_gecos);
+			if ((p = strchr(from, ','))) *p = 0;
+			n = strlen(from);
+			n += snprintf(from + n, sizeof(from) - n, " <%s@%s>\n", pw->pw_name, hostname);
+			my_write(fd, from, n);
+		}
 	}
 
 	/* Read the email and write to file */
