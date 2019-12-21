@@ -38,7 +38,8 @@ int base64_encode(char *dst, int dlen, const uint8_t *src, int len)
 		memcpy(block, src, len);
 		encode_block(dst, block);
 		dst[3] = '=';
-		if (len == 1) dst[2] = '=';
+		if (len == 1)
+			dst[2] = '=';
 		dst += 4;
 		cnt += 4;
 	}

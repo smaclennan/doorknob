@@ -52,7 +52,8 @@ static int create_tmp_file(void)
 	snprintf(real_path, sizeof(real_path), "queue/%s", tmp_file);
 
 	/* Yes, it must be world writable for doorknob. This file is
-	 * protected by the directory permissions. */
+	 * protected by the directory permissions.
+	 */
 	umask(0111);
 	int fd = creat(tmp_path, 0666);
 	if (fd < 0) {
@@ -86,17 +87,20 @@ static void out_one(const char *to, int fd)
 	}
 }
 
-#define RESET \
-	p = to; \
-	*p = 0; \
-	++line; \
-	while (*line == ' ' || *line == '\t') ++line
+#define RESET do {								\
+		p = to;									\
+		*p = 0;									\
+		++line;									\
+		while (*line == ' ' || *line == '\t')	\
+			++line;								\
+	} while (0)
 
 static void output_to(const char *line, int fd)
 {
 	char to[64], *p;
 
-	while (*line != ':') ++line;
+	while (*line != ':')
+		++line;
 	RESET;
 
 	while (*line) {
@@ -142,7 +146,8 @@ static void look_for_to(int fd)
 
 	const char *line = buff;
 	do {
-		if (*line == '\n') ++line;
+		if (*line == '\n')
+			++line;
 
 		if (strncasecmp(line, "To:", 3) == 0 ||
 			strncasecmp(line, "Cc:", 3) == 0 ||
@@ -172,12 +177,21 @@ int main(int argc, char *argv[])
 
 	while ((c = getopt(argc, argv, "f:F:io:r:t")) != EOF)
 		switch (c) {
-		case 'f': from_opt = 1; break;
-		case 'F': break;
-		case 'r': from_opt = 1; break;
-		case 'i': break;
-		case 'o': break;
-		case 't': evil_t = 1; break;
+		case 'f':
+			from_opt = 1;
+			break;
+		case 'F':
+			break;
+		case 'r':
+			from_opt = 1;
+			break;
+		case 'i':
+			break;
+		case 'o':
+			break;
+		case 't':
+			evil_t = 1;
+			break;
 		}
 
 	if (optind == argc && !evil_t) {
@@ -218,9 +232,12 @@ int main(int argc, char *argv[])
 			// Write out the from
 			char from[128], *p;
 			snprintf(from, sizeof(from), "From: %s", pw->pw_gecos);
-			if ((p = strchr(from, ','))) *p = 0;
+			p = strchr(from, ',');
+			if (p)
+				*p = 0;
 			n = strlen(from);
-			n += snprintf(from + n, sizeof(from) - n, " <%s@%s>\n", pw->pw_name, hostname);
+			n += snprintf(from + n, sizeof(from) - n, " <%s@%s>\n",
+						  pw->pw_name, hostname);
 			my_write(fd, from, n);
 		}
 	}

@@ -69,18 +69,18 @@ static char hostname[HOST_NAME_MAX + 1];
 static void logging_init(void)
 {
 	slog2_buffer_t buffer_handle;
-	slog2_buffer_set_config_t buffer_config;
+	slog2_buffer_set_config_t buffer_config = {
+		.num_buffers = 1,
+		.buffer_set_name = "doorknob",
+		.verbosity_level = SLOG2_INFO,
+		.buffer_config[0].buffer_name = "doorknob",
+		.buffer_config[0].num_pages = 1,
+	};
 
-    buffer_config.num_buffers = 1;
-    buffer_config.buffer_set_name = "doorknob";
-    buffer_config.verbosity_level = SLOG2_INFO;
-    buffer_config.buffer_config[0].buffer_name = "doorknob";
-    buffer_config.buffer_config[0].num_pages = 1;
-
-    if (slog2_register(&buffer_config, &buffer_handle, 0)) {
-        fprintf(stderr, "Error registering slog2 buffer!\n");
-        exit(1);
-    }
+	if (slog2_register(&buffer_config, &buffer_handle, 0)) {
+		fprintf(stderr, "Error registering slog2 buffer!\n");
+		exit(1);
+	}
 
 	slog2_set_default_buffer(buffer_handle);
 }
@@ -191,7 +191,8 @@ static int expect_status(int sock, int status)
 	}
 	reply[n] = 0;
 
-	if (debug) printf("S: %s", reply);
+	if (debug)
+		printf("S: %s", reply);
 
 	int got = strtol(reply, NULL, 10);
 	if (status != got) {
@@ -205,7 +206,8 @@ static int expect_status(int sock, int status)
 /* Returns 0 on success, -1 on I/O error, and 1 if status is wrong */
 static int send_str(int sock, const char *str, int status)
 {
-	if (debug) printf("C: %s", str);
+	if (debug)
+		printf("C: %s", str);
 
 	int len = strlen(str);
 	int n = write_socket(sock, str, len);
@@ -258,8 +260,11 @@ static int send_ehlo(int sock)
 	// For starttls this may change so reset
 	auth_type = 0;
 
-	if ((p = strstr(reply, "250-AUTH"))) {
-		if ((e = strchr(p, '\n'))) *e = 0;
+	p = strstr(reply, "250-AUTH");
+	if (p) {
+		e = strchr(p, '\n');
+		if (e)
+			*e = 0;
 		// Prefer auth plain over auth login
 		if (strstr(p, "PLAIN"))
 			auth_type = AUTH_TYPE_PLAIN;
@@ -368,7 +373,8 @@ static int smtp_one(const char *fname)
 	int count = 0;
 	while (fgets(line, sizeof(line), fp) && *line != '\n') {
 		strtok(line, "\r\n");
-		if ((p = strchr(line, '@'))) {
+		p = strchr(line, '@');
+		if (p) {
 			strlcat(logout, " ", sizeof(logout));
 			strlcat(logout, line, sizeof(logout));
 			strconcat(buffer, sizeof(buffer), "RCPT TO:<", line, ">\r\n", NULL);
@@ -402,16 +408,18 @@ static int smtp_one(const char *fname)
 
 done:
 	fclose(fp);
-    ssl_close();
+	ssl_close();
 	if (sock != -1)
 		close(sock);
 	return rc;
 }
 
-#define NEED_VAL if (!val) {					\
-		logmsg("%s needs a value", key);		\
-		continue;								\
-	}
+#define NEED_VAL do {							\
+		if (!val) {								\
+			logmsg("%s needs a value", key);	\
+			continue;							\
+		}										\
+	} while (0)
 
 static void read_config(void)
 {
@@ -427,10 +435,12 @@ static void read_config(void)
 			logmsg("Config file line to long");
 			exit(1);
 		}
-		if (*line == '#') continue;
+		if (*line == '#')
+			continue;
 		char *key = strtok(line, " \t\r\n");
 		char *val = strtok(NULL, "\r\n");
-		if (!key) continue; // empty line
+		if (!key)
+			continue; // empty line
 		if (strcmp(key, "smtp-server") == 0) {
 			NEED_VAL;
 			smtp_server = must_strdup(val);
@@ -489,7 +499,8 @@ static void read_config(void)
 #endif
 			smtp_port = 465;
 			use_ssl = 1;
-			if (debug) puts("Using SSL");
+			if (debug)
+				puts("Using SSL");
 		}
 		smtp_server = server;
 	}
@@ -516,7 +527,7 @@ static int read_event(int fd)
 	return read(fd, event, sizeof(event));
 }
 
-static void usage(void)
+static void _usage(void)
 {
 	puts("usage: doorknob [-fds]\n"
 		 "where: -d turns on debugging (enables foreground and stderr)\n"
@@ -534,14 +545,27 @@ int main(int argc, char *argv[])
 
 	while ((c = getopt(argc, argv, "CDFdfhs")) != EOF)
 		switch (c) {
-		case 'C': no_change = 1; break;
+		case 'C':
+			no_change = 1;
+			break;
 		case 'D': // for backwards compatibility
-		case 'd': debug = 1; foreground = 1; use_stderr = 1; break;
+		case 'd':
+			debug = 1;
+			foreground = 1;
+			use_stderr = 1;
+			break;
 		case 'F': // for backwards compatibility
-		case 'f': foreground = 1; break;
-		case 'h': usage();
-		case 's': use_stderr = 1; break;
-		default: puts("Sorry!"); exit(1);
+		case 'f':
+			foreground = 1;
+			break;
+		case 'h':
+			_usage();
+		case 's':
+			use_stderr = 1;
+			break;
+		default:
+			puts("Sorry!");
+			exit(1);
 		}
 
 	if (chdir(MAILDIR "/queue")) {
