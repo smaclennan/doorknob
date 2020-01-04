@@ -1,4 +1,4 @@
-Doorknob is a SMTP (mail) forwarder that is dumb as a doorknob.
+# Doorknob is a SMTP (mail) forwarder that is dumb as a doorknob.
 
 Doorknob is meant to be used on machines where you want to forward all
 of the mail to one remote mail account. Example use cases are laptops
@@ -21,8 +21,7 @@ Hint: It is recommended that HOSTNAME be set with the fully qualified
       host name.
 
 
-How to install doorknob
------------------------
+## How to install doorknob
 
 Doorknob tries to be distro agnostic. This means you have to work a
 bit harder to install it.
@@ -31,14 +30,14 @@ Check the user settable portion at the top of the Makefile and make
 sure the settings are correct. The defaults should work. I recommend
 using BearSSL. See README.BearSSL.
 
-make && sudo make install
+    make && sudo make install
 
 A file called setup.sh should have been created. It should have all
 the defaults from the Makefile so that it is consistent with the
 executables. Take a good look at it since it must be run as root. When
 you are happy with it run:
 
-sudo sh ./setup.sh
+    sudo sh ./setup.sh
 
 You now must edit /etc/doorknob.conf (or whatever you set CONFIGFILE
 to). This file will most likely contain your username and password, so
@@ -54,8 +53,7 @@ rc.doorknob to /etc/init.d/doorknob. This should work for
 RedHat/Centos too, but I haven't tested it.
 
 
-Validation and Security
------------------------
+## Validation and Security
 
 Doorknob is not very bright. A basic assumption is that you are
 sending to a commercial grade mail server which will already be doing
@@ -77,8 +75,7 @@ the brssl program from BearSSL.
 brssl verify -CA <cert-root-file> <server-cert-file>
 
 
-How It Works
-------------
+## How It Works
 
 You can safely skip this section. You only need this if you want to
 interface with doorknob directly.
@@ -96,9 +93,9 @@ This should guarantee no collisions (except over NFS).
 
 The format of the file is:
 
-<raw to address ...>
-<empty line>
-<stuff>
+    <raw to address ...>
+    <empty line>
+    <stuff>
 
 A raw address is fred@gmail.com, not <fred@gmail.com> and certainly
 not Fred Flintstone <fred@gmail.com>.
