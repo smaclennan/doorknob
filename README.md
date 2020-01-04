@@ -72,7 +72,7 @@ trusted root.
 Currently doorknob supports BearSSL. To verify the certs you can use
 the brssl program from BearSSL.
 
-brssl verify -CA <cert-root-file> <server-cert-file>
+    brssl verify -CA <cert-root-file> <server-cert-file>
 
 
 ## How It Works
