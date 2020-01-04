@@ -113,12 +113,3 @@ unmolested. But the first occurrence of an address without an @ is
 replaced with the mail-from address. All other occurrences are
 silently dropped. The To: field in the header should still contain the
 correct addresses.
-
-
-Ubuntu Warning
---------------
-
-Of course Ubuntu has to be the problem child. The default mail program
-is evil and uses "sendmail -t". Since I don't support this option, and
-don't plan to, you either need to look elsewhere (maybe nullmailer?)
-or do an "apt install s-nail".
