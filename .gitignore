@@ -4,3 +4,4 @@ sendmail
 mailq
 BearSSL
 setup.sh
+email-send
