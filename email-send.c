@@ -4,14 +4,6 @@
 #include <errno.h>
 #include <time.h>
 
-static const char *weekdays[] = {
-	"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
-};
-static const char *months[] = {
-	"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-};
-
 /* Send an email to one recipient via sendmail.
  * Subject can be NULL or part of the body. If subject exists it is
  * assumed that the body has no header elements so it adds the to and date.
@@ -37,11 +29,12 @@ int sendmail(const char *to, const char *subject, const char *body)
 		fprintf(pfp, "Subject: %s\n", subject);
 
 		time_t now = time(NULL);
-		struct tm *tm = gmtime(&now);
-		fprintf(pfp, "Date: %s, %d %s %d %d:%d:%d +0000\n\n",
-				weekdays[tm->tm_wday], tm->tm_mday,
-				months[tm->tm_mon], tm->tm_year + 1900,
-				tm->tm_hour, tm->tm_min, tm->tm_sec);
+		struct tm *tm = localtime(&now);
+		char date[42];
+		strftime(date, sizeof(date), "Date: %a, %d %b %Y %T %z\n\n", tm);
+		if (date[11] == '0')
+			memmove(date + 11, date + 12, 27 + 1);
+		fputs(date, pfp);
 	}
 
 	fputs(body, pfp);
