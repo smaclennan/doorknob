@@ -88,8 +88,10 @@ then sends them. You should create the file somewhere else
 queue directory.
 
 The file name doesn't really matter as long as it isn't a hidden
-file. The recommended format is <seconds>.<microseconds>.<getpid>.
-This should guarantee no collisions (except over NFS).
+file. The recommended format should guarantee no collisions (except
+over NFS):
+
+    <seconds>.<microseconds>.<pid>
 
 The format of the file is:
 
@@ -97,8 +99,8 @@ The format of the file is:
     <empty line>
     <stuff>
 
-A raw address is fred@gmail.com, not <fred@gmail.com> and certainly
-not Fred Flintstone <fred@gmail.com>.
+A raw address is `fred@gmail.com`, not `<fred@gmail.com>` and certainly
+not `Fred Flintstone <fred@gmail.com>`.
 
 Seriously, unless rewriting the From: line, doorknob doesn't care what
 comes after the empty line.
