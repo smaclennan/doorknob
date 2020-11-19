@@ -62,8 +62,8 @@ on a local network where security is not really a consideration. So
 doorknob lets them do that job and just does as little as
 possible. Maybe doorknob isn't as dumb as he looks.
 
-A note about SSL. Doorknob makes can be run with no certificates. This
-is easier, but we do not guarantee we are talking to the right server.
+A note about SSL. Doorknob can be run with no certificates. This is
+easier, but we do not guarantee we are talking to the right server.
 
 You can specify the cert files with 'cert' entries in the config
 file. You should have at least two files: one from the server and the
