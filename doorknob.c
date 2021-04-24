@@ -275,6 +275,90 @@ static int send_ehlo(int sock)
 	return 0;
 }
 
+static int open_and_connect(void)
+{
+	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == -1) {
+		logmsg("socket: %s", strerror(errno));
+		return -1;
+	}
+
+	int flags = 1;
+	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags));
+
+	struct sockaddr_in sock_name;
+	memset(&sock_name, 0, sizeof(sock_name));
+	sock_name.sin_family = AF_INET;
+	sock_name.sin_addr.s_addr = smtp_addr;
+	sock_name.sin_port = htons(smtp_port);
+
+	if (connect(sock, (struct sockaddr *)&sock_name, sizeof(sock_name))) {
+		logmsg("connect: %s", strerror(errno));
+		close(sock);
+		return -1;
+	}
+
+	// starttls defers the ssl_open
+	if (use_ssl && !starttls) {
+		if (ssl_open(sock, smtp_server)) {
+			close(sock);
+			return -1;
+		}
+	}
+
+	return sock;
+}
+
+static int auth_user(int sock, char *buffer, size_t bufsize)
+{
+	if (auth_type == AUTH_TYPE_PLAIN) {
+		char authplain[512];
+
+		mkauthplain(smtp_user, smtp_passwd, authplain, sizeof(authplain));
+		strconcat(buffer, bufsize, "AUTH PLAIN ", authplain, "\r\n", NULL);
+		if (send_str(sock, buffer, 235))
+			return -1;
+	} else if (auth_type == AUTH_TYPE_LOGIN) {
+		char user64[128], passwd64[256];
+
+		base64_encode(user64, sizeof(user64) - 2, (uint8_t *)smtp_user, strlen(smtp_user));
+		base64_encode(passwd64, sizeof(passwd64) - 2, (uint8_t *)smtp_passwd, strlen(smtp_passwd));
+		strcat(user64, "\r\n");
+		strcat(passwd64, "\r\n");
+
+		// We assume user then password... we should actually check reply
+		if (send_str(sock, "AUTH LOGIN\r\n", 334))
+			return -1;
+		if (send_str(sock, user64, 334))
+			return -1;
+		if (send_str(sock, passwd64, 235))
+			return -1;
+	}
+
+	return 0;
+}
+
+static int start_starttls(int sock)
+{
+	use_ssl = 0; // turn it off for first hello
+
+	expect_status(sock, 220);
+
+	if (send_ehlo(sock))
+		return -1;
+
+	if (send_str(sock, "STARTTLS\r\n", 220))
+		return -1;
+
+	if (ssl_open(sock, smtp_server))
+		return -1;
+
+	use_ssl = 1;
+
+	// We have to send hello again
+	return send_ehlo(sock);
+}
+
 static int smtp_one(const char *fname)
 {
 	char logout[1024];
@@ -292,77 +376,23 @@ static int smtp_one(const char *fname)
 
 	rc = -1; // reset to failed
 
-	int sock = socket(AF_INET, SOCK_STREAM, 0);
+	int sock = open_and_connect();
 	if (sock == -1) {
-		logmsg("socket: %s", strerror(errno));
 		goto done;
 	}
-
-	int flags = 1;
-	setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags));
-
-	struct sockaddr_in sock_name;
-	memset(&sock_name, 0, sizeof(sock_name));
-	sock_name.sin_family = AF_INET;
-	sock_name.sin_addr.s_addr = smtp_addr;
-	sock_name.sin_port = htons(smtp_port);
-
-	if (connect(sock, (struct sockaddr *)&sock_name, sizeof(sock_name))) {
-		logmsg("connect: %s", strerror(errno));
-		goto done;
-	}
-
-	if (use_ssl) {
-		if (starttls)
-			use_ssl = 0; /* reset for first hello */
-		else if (ssl_open(sock, smtp_server))
-			goto done;
-	}
-
-	expect_status(sock, 220);
-
-	if (send_ehlo(sock))
-		goto done;
 
 	if (starttls) {
-		if (send_str(sock, "STARTTLS\r\n", 220))
+		if (start_starttls(sock))
 			goto done;
+	} else {
+		expect_status(sock, 220);
 
-		if (ssl_open(sock, smtp_server))
-			goto done;
-
-		use_ssl = 1;
-
-		// We have to send hello again
 		if (send_ehlo(sock))
 			goto done;
 	}
 
-	if (smtp_user) {
-		if (auth_type == AUTH_TYPE_PLAIN) {
-			char authplain[512];
-
-			mkauthplain(smtp_user, smtp_passwd, authplain, sizeof(authplain));
-			strconcat(buffer, sizeof(buffer), "AUTH PLAIN ", authplain, "\r\n", NULL);
-			if (send_str(sock, buffer, 235))
-				goto done;
-		} else if (auth_type == AUTH_TYPE_LOGIN) {
-			char user64[128], passwd64[256];
-
-			base64_encode(user64, sizeof(user64) - 2, (uint8_t *)smtp_user, strlen(smtp_user));
-			base64_encode(passwd64, sizeof(passwd64) - 2, (uint8_t *)smtp_passwd, strlen(smtp_passwd));
-			strcat(user64, "\r\n");
-			strcat(passwd64, "\r\n");
-
-			// We assume user then password... we should actually check reply
-			if (send_str(sock, "AUTH LOGIN\r\n", 334))
-				goto done;
-			if (send_str(sock, user64, 334))
-				goto done;
-			if (send_str(sock, passwd64, 235))
-				goto done;
-		}
-	}
+	if (smtp_user)
+		auth_user(sock, buffer, sizeof(buffer));
 
 	strconcat(buffer, sizeof(buffer), "MAIL FROM:<", mail_from, ">\r\n", NULL);
 	if (send_str(sock, buffer, 250))
