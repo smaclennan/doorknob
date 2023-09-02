@@ -563,7 +563,10 @@ static void _usage(void)
 		 "where: -d turns on debugging (enables foreground and stderr)\n"
 		 "       -f keeps doorknob in foreground\n"
 		 "       -h this help message\n"
-		 "       -s use stderr rather than syslog");
+		 "       -s use stderr rather than syslog\n"
+		 "\n"
+		 "Note: You must have an " CONFIGFILE " configured for your system.\n"
+		 "      A sample doorknob.conf is provided with the source.");
 	exit(1);
 }
 
@@ -594,7 +597,7 @@ int main(int argc, char *argv[])
 			use_stderr = 1;
 			break;
 		default:
-			puts("Sorry!");
+			puts("Sorry! Maybe try -h for help?");
 			exit(1);
 		}
 
