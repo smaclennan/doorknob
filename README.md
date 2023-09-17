@@ -112,3 +112,18 @@ unmolested. But the first occurrence of an address without an @ is
 replaced with the mail-from address. All other occurrences are
 silently dropped. The To: field in the header should still contain the
 correct addresses.
+
+## Winning the fight with mail servers
+
+The mail server I use now requires the From and the RCPT_TO match. The
+crontab daemon I use does not add the From. This created a problem and
+all my crontab email was rejected.
+
+Since crontab is my main use case for doorknob, I had to fix it.
+
+The doorknob sendmail will now add `From: unknown` if there is no From
+and a Date if there is no date. Since I was already updating, might as
+well add the date since I sort by date in my mail client.
+
+I then enabled `rewrite-from` in my /etc/doorknob.conf. This takes the
+unknown and corrects it. I am now getting crontab emails again.
