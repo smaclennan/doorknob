@@ -26,6 +26,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <pwd.h>
+#include <time.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 
@@ -135,6 +136,45 @@ static void output_to(const char *line, int fd)
 	}
 }
 
+static void rewrite_header(int fd)
+{
+	int saw_from = 0, saw_date = 0;
+
+	const char *line = buff;
+	do {
+		if (*line == '\n')
+			++line;
+
+		if (*line == '\n' || *line == '\r') {
+			// end of header
+			if (!saw_from)
+				my_write(fd, "From: unknown\n", 38);
+			if (!saw_date) {
+				// Date isn't required... but I sort by date
+				time_t now = time(NULL);
+				struct tm *tm = localtime(&now);
+
+				char date[64];
+				strftime(date, sizeof(date), "Date: %a, %d %b %Y %T %z\n", tm);
+				my_write(fd, date, strlen(date));
+			}
+
+			// and the body
+			my_write(fd, line, strlen(line));
+			return;
+		} else {
+			if (strncmp(line, "From:", 5) == 0)
+				saw_from = 1;
+			else if (strncmp(line, "Date:", 5) == 0)
+				saw_date = 1;
+			char *p = strchr(line, '\n');
+			if (p)
+				my_write(fd, line, p - line + 1);
+		}
+	} while ((line = strchr(line, '\n')));
+}
+
+// Look for recipients and output them
 static void look_for_to(int fd)
 {
 	int count = 0;
@@ -161,7 +201,8 @@ static void look_for_to(int fd)
 			if (count == 0)
 				goto invalid;
 			my_write(fd, "\n", 1); // end of recipients
-			my_write(fd, buff, blen);
+
+			rewrite_header(fd);
 			return;
 		}
 	} while ((line = strchr(line, '\n')));
