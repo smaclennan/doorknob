@@ -148,7 +148,7 @@ static void rewrite_header(int fd)
 		if (*line == '\n' || *line == '\r') {
 			// end of header
 			if (!saw_from)
-				my_write(fd, "From: unknown\n", 38);
+				my_write(fd, "From: unknown\n", 14);
 			if (!saw_date) {
 				// Date isn't required... but I sort by date
 				time_t now = time(NULL);
