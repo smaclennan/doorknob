@@ -234,6 +234,8 @@ static int send_body(int sock, FILE *fp)
 		int wrote = write_socket(sock, buffer, n);
 		if (wrote != n)
 			return -1;
+		if (debug > 1)
+			printf("B: %.*s", n, buffer);
 	}
 
 	if (ferror(fp)) {
@@ -583,7 +585,7 @@ int main(int argc, char *argv[])
 			break;
 		case 'D': // for backwards compatibility
 		case 'd':
-			debug = 1;
+			++debug;
 			foreground = 1;
 			use_stderr = 1;
 			break;
