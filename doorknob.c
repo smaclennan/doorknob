@@ -537,18 +537,29 @@ static void read_config(void)
 		smtp_server = server;
 	}
 
-	struct hostent *host = gethostbyname(smtp_server);
-	if (!host) {
-		logmsg("Unable to get host %s", server);
-		exit(1);
-	}
-
-	smtp_addr = *(uint32_t *)host->h_addr_list[0];
-
 	if (gethostname(hostname, sizeof(hostname))) {
 		logmsg("hostname: %s", strerror(errno));
 		exit(1);
 	}
+}
+
+static void get_smtp_server(void)
+{
+	int first_time = 1;
+
+	struct hostent *host;
+	do {
+		host = gethostbyname(smtp_server);
+		if (!host) {
+			if (first_time) {
+				logmsg("Warning: Unable to get host %s", smtp_server);
+				first_time = 0;
+			}
+			sleep(5);
+		}
+	} while (!host);
+
+	smtp_addr = *(uint32_t *)host->h_addr_list[0];
 }
 
 // This is really to get around the read() return warning.
@@ -657,6 +668,14 @@ int main(int argc, char *argv[])
 			logmsg("daemon: %s", strerror(errno));
 #endif
 	}
+
+	// Get the smtp server after possibly going into background.
+	// This is to deal with the case where, for example, you need to
+	// startup a VPN for DNS to work. We don't want to stay in the
+	// foreground while waiting.
+	get_smtp_server();
+
+	logmsg("Running");
 
 	struct pollfd ufd = { .fd = fd, .events = POLLIN };
 
