@@ -48,7 +48,7 @@ M4FLAGS = $(subst \",,$(CONFFLAGS))
 D = -O2
 CFLAGS += -Wall $(D:1=-g)
 
-CFLAGS += -D_FORTIFY_SOURCE=1
+CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=1
 
 # If you set V=1 on the command line then you will get the actual
 # commands displayed.
